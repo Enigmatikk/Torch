@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 use std::any::{Any, TypeId};
+use std::sync::Arc;
 use http::{HeaderMap, Method, Uri, Version};
 use http_body_util::BodyExt;
 use hyper::body::Incoming;
+use crate::extractors::state::StateMap;
 
 /// HTTP Request wrapper that provides convenient access to request data
 #[derive(Debug)]
@@ -112,6 +114,11 @@ impl Request {
         &self.params
     }
 
+    /// Get all path parameters (for extractors)
+    pub fn path_params(&self) -> &HashMap<String, String> {
+        &self.params
+    }
+
     /// Set a path parameter (used internally by the router)
     pub(crate) fn set_param(&mut self, name: String, value: String) {
         self.params.insert(name, value);
@@ -149,6 +156,27 @@ impl Request {
         &self.query
     }
 
+    /// Get the raw query string
+    pub fn query_string(&self) -> Option<&str> {
+        self.uri.query()
+    }
+
+    /// Get the request body as bytes (for extractors)
+    pub fn body_bytes(&self) -> &[u8] {
+        &self.body
+    }
+
+    /// Set the request body (for testing)
+    #[cfg(test)]
+    pub fn set_body(&mut self, body: Vec<u8>) {
+        self.body = body;
+    }
+
+    /// Get mutable access to headers (for extractors)
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.headers
+    }
+
     /// Parse query string into a HashMap
     fn parse_query_string(query: &str) -> HashMap<String, String> {
         let mut params = HashMap::new();
@@ -165,6 +193,29 @@ impl Request {
         }
         
         params
+    }
+}
+
+/// Implementation of RequestStateExt for Request
+impl crate::extractors::state::RequestStateExt for Request {
+    fn get_state(&self, type_id: TypeId) -> Option<&Arc<dyn Any + Send + Sync>> {
+        // Check if we have a StateMap stored in extensions
+        if let Some(state_map_any) = self.extensions.get(&TypeId::of::<StateMap>()) {
+            if let Some(state_map) = state_map_any.downcast_ref::<StateMap>() {
+                return state_map.get_by_type_id(type_id);
+            }
+        }
+        None
+    }
+
+    fn set_state_map(&mut self, state_map: StateMap) {
+        self.extensions.insert(TypeId::of::<StateMap>(), Box::new(state_map));
+    }
+
+    fn state_map(&self) -> Option<&StateMap> {
+        self.extensions
+            .get(&TypeId::of::<StateMap>())
+            .and_then(|state_map_any| state_map_any.downcast_ref::<StateMap>())
     }
 }
 

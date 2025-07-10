@@ -165,6 +165,11 @@ impl Response {
         self.status
     }
 
+    /// Get a mutable reference to the status code
+    pub fn status_code_mut(&mut self) -> &mut StatusCode {
+        &mut self.status
+    }
+
     /// Get the headers
     pub fn headers(&self) -> &HeaderMap {
         &self.headers

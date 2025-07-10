@@ -5,6 +5,7 @@ use crate::{
     middleware::{MiddlewareStack, Middleware},
     error_pages::ErrorPages,
     server::serve,
+    extractors::state::{StateMap, RequestStateExt},
 };
 
 /// Your app's starting point - where all the magic happens
@@ -12,6 +13,7 @@ pub struct App {
     router: Router,
     middleware: MiddlewareStack,
     error_pages: ErrorPages,
+    state: StateMap,
     #[cfg(feature = "api")]
     pub(crate) api_docs: Option<crate::api::ApiDocBuilder>,
     #[cfg(not(feature = "api"))]
@@ -25,11 +27,21 @@ impl App {
             router: Router::new(),
             middleware: MiddlewareStack::new(),
             error_pages: ErrorPages::new(),
+            state: StateMap::new(),
             #[cfg(feature = "api")]
             api_docs: None,
             #[cfg(not(feature = "api"))]
             _phantom: std::marker::PhantomData,
         }
+    }
+
+    /// Add application state that can be accessed in handlers
+    pub fn with_state<T>(mut self, state: T) -> Self
+    where
+        T: Clone + Send + Sync + 'static,
+    {
+        self.state.insert(state);
+        self
     }
 
     /// Stack up middleware for request processing
@@ -168,7 +180,7 @@ impl App {
         Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send + 'static,
     {
         let handler = std::sync::Arc::new(handler);
-        self.get(path, move |req: Request| {
+        self.get::<_, (Request,)>(path, move |req: Request| {
             let _handler = handler.clone();
             async move {
                 // Check if this is a WebSocket upgrade request
@@ -200,7 +212,10 @@ impl App {
     }
 
     /// Process incoming requests through middleware and routing
-    pub(crate) async fn handle_request(&self, req: Request) -> Response {
+    pub(crate) async fn handle_request(&self, mut req: Request) -> Response {
+        // Inject application state into the request
+        req.set_state_map(self.state.clone());
+
         let router = self.router.clone();
         let error_pages = self.error_pages.clone();
 

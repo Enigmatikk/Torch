@@ -29,6 +29,7 @@ pub mod cache;
 pub mod config;
 pub mod database;
 pub mod error_pages;
+pub mod extractors;
 pub mod handler;
 pub mod middleware;
 pub mod production;

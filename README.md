@@ -34,6 +34,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 ## ✨ Features
 
+### 🎯 **Type-Safe Extractors**
+- **Path parameters** - Extract `:id`, `:name` with automatic type conversion
+- **Query strings** - Parse `?key=value` into structs or HashMaps
+- **JSON bodies** - Deserialize request bodies with serde
+- **Headers** - Access any HTTP header with type safety
+- **Application state** - Share data across handlers with dependency injection
+- **Multiple extractors** - Combine any extractors in a single handler
+
 ### 🚀 **High Performance**
 - Built on **Tokio + Hyper** for maximum async performance
 - Handles thousands of concurrent connections efficiently
@@ -148,6 +156,83 @@ cargo run --example hello_world
 
 # Visit http://localhost:3000 to see it in action!
 ```
+
+## 🎯 Type-Safe Extractors
+
+Torch features a powerful extractors system that makes handling requests type-safe and ergonomic:
+
+```rust
+use torch_web::{App, main, extractors::*};
+use std::collections::HashMap;
+
+#[derive(Clone)]
+struct AppState {
+    counter: std::sync::Arc<tokio::sync::Mutex<u64>>,
+}
+
+#[main]
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let state = AppState {
+        counter: std::sync::Arc::new(tokio::sync::Mutex::new(0)),
+    };
+
+    let app = App::new()
+        .with_state(state)
+
+        // Path parameters
+        .get("/users/:id", |Path(user_id): Path<u32>| async move {
+            format!("User ID: {}", user_id)
+        })
+
+        // Query parameters
+        .get("/search", |Query(params): Query<HashMap<String, String>>| async move {
+            let query = params.get("q").unwrap_or(&"*".to_string());
+            format!("Searching for: {}", query)
+        })
+
+        // JSON body (with json feature)
+        .post("/users", |Json(user): Json<serde_json::Value>| async move {
+            format!("Creating user: {}", user)
+        })
+
+        // Headers
+        .get("/info", |Headers(headers): Headers| async move {
+            let user_agent = headers.get("user-agent")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("Unknown");
+            format!("Your browser: {}", user_agent)
+        })
+
+        // Application state
+        .post("/increment", |State(state): State<AppState>| async move {
+            let mut counter = state.counter.lock().await;
+            *counter += 1;
+            format!("Counter: {}", *counter)
+        })
+
+        // Multiple extractors
+        .get("/api/:version/search", |
+            Path(version): Path<String>,
+            Query(params): Query<HashMap<String, String>>,
+            State(state): State<AppState>,
+        | async move {
+            let counter = state.counter.lock().await;
+            let query = params.get("q").unwrap_or(&"*".to_string());
+            format!("API v{}: Searching '{}' (requests: {})", version, query, *counter)
+        });
+
+    app.listen("127.0.0.1:3000").await
+}
+```
+
+### Available Extractors
+
+- **`Path<T>`** - Extract path parameters (`:id`, `:name`, etc.)
+- **`Query<T>`** - Extract query string parameters (`?key=value`)
+- **`Json<T>`** - Extract and deserialize JSON request bodies
+- **`Headers`** - Access request headers
+- **`State<T>`** - Access shared application state
+- **Multiple extractors** - Combine any extractors in a single handler
 
 ## 🎨 Beautiful Error Pages
 
