@@ -5,9 +5,9 @@
 Torch is a fast, secure, and production-ready web framework for Rust. Built on Tokio and Hyper, it provides everything you need to build modern web applications with minimal configuration.
 
 ```rust
-use torch_web::{App, Request, Response};
+use torch_web::{App, Request, Response, main};
 
-#[tokio::main]
+#[main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let app = App::new()
         .get("/", |_req: Request| async {
@@ -83,25 +83,25 @@ Add Torch to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-torch-web = "0.1.0"
-tokio = { version = "1.0", features = ["full"] }
+# Basic usage - no need for tokio dependency!
+torch-web = "0.2.0"
 
 # For JSON support (recommended)
-torch-web = { version = "0.1.0", features = ["json"] }
+torch-web = { version = "0.2.0", features = ["json"] }
 
 # For production features
-torch-web = { version = "0.1.0", features = ["production"] }
+torch-web = { version = "0.2.0", features = ["production"] }
 
 # All features
-torch-web = { version = "0.1.0", features = ["production", "websocket", "database", "cache"] }
+torch-web = { version = "0.2.0", features = ["production", "websocket", "database", "cache"] }
 ```
 
 ### Hello World
 
 ```rust
-use torch_web::{App, Request, Response};
+use torch_web::{App, Request, Response, main};
 
-#[tokio::main]
+#[main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let app = App::new()
         .get("/", |_req: Request| async {

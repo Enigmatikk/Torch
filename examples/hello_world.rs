@@ -1,6 +1,6 @@
-use torch_web::{App, Request, Response};
+use torch_web::{App, Request, Response, main};
 
-#[tokio::main]
+#[main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let app = App::new()
         .get("/", |_req: Request| async {

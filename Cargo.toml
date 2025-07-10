@@ -1,6 +1,6 @@
 [package]
 name = "torch-web"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Dragos Ionut <dragosionut@keemail.me>"]
 description = "Fast, secure web framework for Rust with production-ready features out of the box"
@@ -52,10 +52,10 @@ futures-util = { version = "0.3", optional = true }
 sha1 = { version = "0.10", optional = true }
 
 # Database support (optional)
-sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-rustls", "chrono", "uuid"], optional = true }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio-rustls", "chrono", "uuid"], optional = true }
 
 # Cache support (optional)
-redis = { version = "0.24", optional = true }
+redis = { version = "0.26", optional = true }
 
 [features]
 default = ["json"]

@@ -50,5 +50,8 @@ pub use router::Router;
 // HTTP essentials from the http crate
 pub use http::{Method, StatusCode, HeaderMap, HeaderName, HeaderValue};
 
+// Re-export tokio main macro for convenience
+pub use tokio::main;
+
 #[cfg(feature = "json")]
 pub use serde_json::{json, Value as JsonValue};
