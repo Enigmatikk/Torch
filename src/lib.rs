@@ -6,7 +6,7 @@
 //! ## Quick Start
 //!
 //! ```rust,no_run
-//! use torch::{App, Request, Response};
+//! use torch_web::{App, Request, Response};
 //!
 //! #[tokio::main]
 //! async fn main() {

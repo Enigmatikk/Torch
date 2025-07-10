@@ -5,7 +5,7 @@
 Torch is a fast, secure, and production-ready web framework for Rust. Built on Tokio and Hyper, it provides everything you need to build modern web applications with minimal configuration.
 
 ```rust
-use torch::{App, Request, Response};
+use torch_web::{App, Request, Response};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -82,23 +82,23 @@ Add Torch to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-torch = "0.1.0"
+torch-web = "0.1.0"
 tokio = { version = "1.0", features = ["full"] }
 
 # For JSON support (recommended)
-torch = { version = "0.1.0", features = ["json"] }
+torch-web = { version = "0.1.0", features = ["json"] }
 
 # For production features
-torch = { version = "0.1.0", features = ["production"] }
+torch-web = { version = "0.1.0", features = ["production"] }
 
 # All features
-torch = { version = "0.1.0", features = ["production", "websocket", "database", "cache"] }
+torch-web = { version = "0.1.0", features = ["production", "websocket", "database", "cache"] }
 ```
 
 ### Hello World
 
 ```rust
-use torch::{App, Request, Response};
+use torch_web::{App, Request, Response};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -166,7 +166,7 @@ Torch includes rotating 404 messages with flame themes:
 
 ### Customizable
 ```rust
-use torch::ErrorPages;
+use torch_web::ErrorPages;
 
 let custom_pages = ErrorPages::new()
     .custom_404("Your custom 404 HTML here")
@@ -248,7 +248,7 @@ export TORCH_REDIS_URL=redis://localhost:6379
 ## 🛡️ Security Features
 
 ```rust
-use torch::security::*;
+use torch_web::security::*;
 
 // Input validation and sanitization
 let app = App::new()
@@ -270,7 +270,7 @@ let app = app.middleware(whitelist);
 ## 📊 Production Features
 
 ```rust
-use torch::production::*;
+use torch_web::production::*;
 
 // Metrics and monitoring
 let app = App::new()
@@ -293,7 +293,7 @@ let app = app.get("/health", |_req| async {
 Torch provides a powerful and flexible middleware system:
 
 ```rust
-use torch::middleware::*;
+use torch_web::middleware::*;
 
 // Built-in middleware
 let app = App::new()
