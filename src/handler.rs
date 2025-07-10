@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::pin::Pin;
 use crate::{Request, Response};
-use crate::extractors::{FromRequest, FromRequestParts, IntoResponse};
+use crate::extractors::{FromRequestParts, IntoResponse};
 
 /// A trait for handling HTTP requests
 pub trait Handler<T>: Clone + Send + Sync + 'static {
@@ -224,7 +224,7 @@ macro_rules! handler {
     };
 }
 
-#[cfg(disabled_for_now)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::Response;

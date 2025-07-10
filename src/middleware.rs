@@ -154,7 +154,7 @@ pub fn security_headers() -> impl Middleware {
     }
 }
 
-#[cfg(disabled_for_now)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::Response;

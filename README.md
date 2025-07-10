@@ -87,21 +87,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 ### Installation
 
-Add Torch to your `Cargo.toml`:
+Run this in your Terminal:
 
 ```toml
-[dependencies]
-# Basic usage - no need for tokio dependency!
-torch-web = "0.2.0"
-
-# For JSON support (recommended)
-torch-web = { version = "0.2.0", features = ["json"] }
-
-# For production features
-torch-web = { version = "0.2.0", features = ["production"] }
-
-# All features
-torch-web = { version = "0.2.0", features = ["production", "websocket", "database", "cache"] }
+cargo add torch-web
 ```
 
 ### Hello World

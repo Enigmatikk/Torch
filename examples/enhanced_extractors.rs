@@ -133,8 +133,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .http_only(true)
                 .same_site(SameSite::Lax)
                 .build();
-            
+
             format!("🔥 Session set! Cookie: {}", cookie)
+        })
+
+        // Advanced header extractors
+        .get("/headers/user-agent", |UserAgent(ua): UserAgent| async move {
+            match ua {
+                Some(agent) => format!("🔥 User-Agent: {}", agent),
+                None => "🔥 No User-Agent header found".to_string(),
+            }
+        })
+
+        .get("/headers/auth", |Authorization(auth): Authorization| async move {
+            match auth {
+                Some(token) => format!("🔥 Authorization: {}", token),
+                None => "🔥 No Authorization header found".to_string(),
+            }
+        })
+
+        .get("/headers/content-type", |ContentType(ct): ContentType| async move {
+            match ct {
+                Some(content_type) => format!("🔥 Content-Type: {}", content_type),
+                None => "🔥 No Content-Type header found".to_string(),
+            }
+        })
+
+        // Advanced JSON extractors (manual for now)
+        .post("/json/raw", |req: torch_web::Request| async move {
+            let body = std::str::from_utf8(req.body_bytes()).unwrap_or("{}");
+            format!("🔥 Raw JSON body: {}", body)
+        })
+
+        .post("/json/limited", |req: torch_web::Request| async move {
+            let body = std::str::from_utf8(req.body_bytes()).unwrap_or("{}");
+            if body.len() > 1024 {
+                format!("🔥 JSON too large: {} bytes (limit: 1024)", body.len())
+            } else {
+                format!("🔥 JSON within limit: {} bytes", body.len())
+            }
         });
 
     println!("🔥 Starting Enhanced Extractors Demo...");
@@ -162,6 +199,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!();
     println!("🎛️  Complex:");
     println!("   GET  /dashboard/123?theme=dark      - Multiple extractors + state");
+    println!();
+    println!("🔧 Advanced Headers:");
+    println!("   GET  /headers/user-agent            - Extract User-Agent header");
+    println!("   GET  /headers/auth                  - Extract Authorization header");
+    println!("   GET  /headers/content-type          - Extract Content-Type header");
+    println!();
+    println!("📊 Advanced JSON:");
+    println!("   POST /json/raw                      - Raw JSON extraction");
+    println!("   POST /json/limited                  - Size-limited JSON");
     println!();
     println!("❌ Error Examples:");
     println!("   GET  /error/path/notanumber         - Path parsing error");

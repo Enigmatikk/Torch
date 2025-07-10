@@ -26,12 +26,11 @@
 //! }
 //! ```
 
-use std::collections::HashMap;
 use std::convert::Infallible;
 use std::future::Future;
 use std::pin::Pin;
 use crate::{Request, Response};
-use http::{HeaderMap, StatusCode};
+use http::StatusCode;
 
 /// Trait for extracting data from the complete request
 pub trait FromRequest: Sized {
@@ -181,13 +180,13 @@ where
 // Re-export common types for convenience
 pub use path::Path;
 pub use query::{Query, SerdeQuery};
-pub use headers::Headers;
+pub use headers::{Headers, HeaderExtractor, UserAgent, Authorization, ContentType};
 pub use state::State;
 pub use form::{Form, SerdeForm};
 pub use cookies::{Cookies, SessionCookie, CookieBuilder, SameSite, get_cookie, get_required_cookie};
 
 #[cfg(feature = "json")]
-pub use json::Json;
+pub use json::{Json, RawJson, JsonWithLimit};
 
 // Module declarations
 mod path;

@@ -5,7 +5,7 @@
 use std::pin::Pin;
 use std::future::Future;
 use crate::{Request, extractors::{FromRequestParts, ExtractionError}};
-use http::{HeaderMap, HeaderName, HeaderValue};
+use http::HeaderMap;
 
 /// Extract headers from the request
 ///
@@ -63,6 +63,35 @@ impl HeaderExtractor {
 
     pub fn get(&self) -> Option<&str> {
         self.value.as_deref()
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+impl FromRequestParts for HeaderExtractor {
+    type Error = ExtractionError;
+
+    fn from_request_parts(
+        req: &mut Request,
+    ) -> Pin<Box<dyn Future<Output = Result<Self, Self::Error>> + Send + 'static>> {
+        let headers = req.headers().clone();
+
+        Box::pin(async move {
+            // This is a placeholder - in practice, you'd need to specify which header to extract
+            // For now, we'll extract the first header as an example
+            let (name, value) = if let Some((name, value)) = headers.iter().next() {
+                (name.as_str().to_string(), value.to_str().unwrap_or("").to_string())
+            } else {
+                ("".to_string(), "".to_string())
+            };
+
+            Ok(HeaderExtractor {
+                name,
+                value: if value.is_empty() { None } else { Some(value) },
+            })
+        })
     }
 }
 

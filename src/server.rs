@@ -164,7 +164,7 @@ mod tests {
 
     #[test]
     fn test_server_builder() {
-        let app = App::new().get("/", |_req: crate::Request| async { Response::ok() });
+        let app = App::new().get::<_, (crate::Request,)>("/", |_req: crate::Request| async { Response::ok() });
         
         let _server = Server::new(app)
             .max_connections(1000)

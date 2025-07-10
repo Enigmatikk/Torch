@@ -36,7 +36,7 @@ where
     type Error = ExtractionError;
 
     fn from_request(
-        mut req: Request,
+        req: Request,
     ) -> Pin<Box<dyn Future<Output = Result<(Self, Request), Self::Error>> + Send + 'static>> {
         Box::pin(async move {
             // Check content type
@@ -98,7 +98,7 @@ impl FromRequest for RawJson {
     type Error = ExtractionError;
 
     fn from_request(
-        mut req: Request,
+        req: Request,
     ) -> Pin<Box<dyn Future<Output = Result<(Self, Request), Self::Error>> + Send + 'static>> {
         Box::pin(async move {
             // Check content type
@@ -157,7 +157,7 @@ where
     type Error = ExtractionError;
 
     fn from_request(
-        mut req: Request,
+        req: Request,
     ) -> Pin<Box<dyn Future<Output = Result<(Self, Request), Self::Error>> + Send + 'static>> {
         Box::pin(async move {
             // Check content type

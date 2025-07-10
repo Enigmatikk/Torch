@@ -315,7 +315,7 @@ impl App {
     }
 }
 
-#[cfg(disabled_for_now)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::pin::Pin;
@@ -384,7 +384,7 @@ mod tests {
     #[test]
     fn test_app_builder_pattern() {
         let _app = App::new()
-            .get("/", |_req: Request| async { Response::ok() })
+            .get::<_, (Request,)>("/", |_req: Request| async { Response::ok() })
             .post("/users", |_req: Request| async { Response::ok() })
             .middleware(crate::middleware::logger())
             .middleware(crate::middleware::cors());
