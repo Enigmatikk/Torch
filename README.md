@@ -177,6 +177,16 @@ my-torch-app/
 - **Middleware system** for composable functionality
 - **Hot reloading** in development mode
 
+## 🛠️ Developer Tools
+
+- **[VS Code Extension](https://github.com/Enigmatikk/torch-vscode)** - Syntax highlighting and IntelliSense for Ember templates
+- **[Marketplace](https://marketplace.visualstudio.com/search?term=torch%20ember&target=VSCode)** - Install from VS Code Extensions
+
+```bash
+# Install VS Code extension for .ember template support
+code --install-extension enigmatikk.torch-ember
+```
+
 ## 🚀 Quick Start
 
 ### Installation

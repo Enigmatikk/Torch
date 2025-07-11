@@ -1,0 +1,24 @@
+{
+  "files.associations": {
+    "*.ember": "ember"
+  },
+  "emmet.includeLanguages": {
+    "ember": "html"
+  },
+  "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.checkOnSave.command": "clippy",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": true
+  },
+  "files.exclude": {
+    "**/target": true,
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true
+  },
+  "search.exclude": {
+    "**/target": true,
+    "**/node_modules": true
+  }
+}
