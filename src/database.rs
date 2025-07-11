@@ -1,4 +1,107 @@
-//! Database integration with connection pooling and query builder
+//! # Database Integration
+//!
+//! This module provides comprehensive database integration for Torch applications,
+//! featuring connection pooling, query builders, migrations, and ORM-like functionality.
+//! It's built on top of SQLx for type-safe, async database operations.
+//!
+//! ## Features
+//!
+//! - **Connection Pooling**: Efficient connection management with configurable pool sizes
+//! - **Type Safety**: Compile-time checked queries with SQLx
+//! - **Async/Await**: Full async support for non-blocking database operations
+//! - **Multiple Databases**: Support for PostgreSQL, MySQL, SQLite
+//! - **Query Builder**: Fluent API for building complex queries
+//! - **Migrations**: Database schema versioning and migrations
+//! - **JSON Support**: Automatic JSON serialization/deserialization
+//! - **Transaction Support**: ACID transactions with rollback support
+//!
+//! **Note**: This module requires the `database` feature to be enabled.
+//!
+//! ## Quick Start
+//!
+//! ### Basic Setup
+//!
+//! ```rust
+//! use torch_web::{App, database::DatabasePool};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Create database pool
+//!     let db = DatabasePool::new("postgresql://user:pass@localhost/mydb").await?;
+//!
+//!     let app = App::new()
+//!         .with_state(db)
+//!         .get("/users", |State(db): State<DatabasePool>| async move {
+//!             let users = db.query_json("SELECT * FROM users", &[]).await?;
+//!             Response::ok().json(&users)
+//!         })
+//!         .post("/users", |State(db): State<DatabasePool>, Json(user): Json<CreateUser>| async move {
+//!             let result = db.execute(
+//!                 "INSERT INTO users (name, email) VALUES ($1, $2)",
+//!                 &[&user.name, &user.email]
+//!             ).await?;
+//!             Response::created().json(&serde_json::json!({"id": result.last_insert_id()}))
+//!         });
+//!
+//!     app.listen("127.0.0.1:3000").await
+//! }
+//! ```
+//!
+//! ### With Query Builder
+//!
+//! ```rust
+//! use torch_web::{App, database::{DatabasePool, QueryBuilder}};
+//!
+//! let app = App::new()
+//!     .with_state(db)
+//!     .get("/users", |State(db): State<DatabasePool>, Query(params): Query<UserFilters>| async move {
+//!         let mut query = QueryBuilder::new("users")
+//!             .select(&["id", "name", "email", "created_at"]);
+//!
+//!         if let Some(name) = params.name {
+//!             query = query.where_like("name", &format!("%{}%", name));
+//!         }
+//!
+//!         if let Some(active) = params.active {
+//!             query = query.where_eq("active", &active.to_string());
+//!         }
+//!
+//!         let users = query.fetch_json(&db).await?;
+//!         Response::ok().json(&users)
+//!     });
+//! ```
+//!
+//! ### With Transactions
+//!
+//! ```rust
+//! use torch_web::{App, database::DatabasePool};
+//!
+//! let app = App::new()
+//!     .post("/transfer", |State(db): State<DatabasePool>, Json(transfer): Json<Transfer>| async move {
+//!         let mut tx = db.begin_transaction().await?;
+//!
+//!         // Debit from source account
+//!         tx.execute(
+//!             "UPDATE accounts SET balance = balance - $1 WHERE id = $2",
+//!             &[&transfer.amount.to_string(), &transfer.from_account.to_string()]
+//!         ).await?;
+//!
+//!         // Credit to destination account
+//!         tx.execute(
+//!             "UPDATE accounts SET balance = balance + $1 WHERE id = $2",
+//!             &[&transfer.amount.to_string(), &transfer.to_account.to_string()]
+//!         ).await?;
+//!
+//!         // Record the transfer
+//!         tx.execute(
+//!             "INSERT INTO transfers (from_account, to_account, amount) VALUES ($1, $2, $3)",
+//!             &[&transfer.from_account.to_string(), &transfer.to_account.to_string(), &transfer.amount.to_string()]
+//!         ).await?;
+//!
+//!         tx.commit().await?;
+//!         Response::ok().json(&serde_json::json!({"status": "success"}))
+//!     });
+//! ```
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -11,7 +114,88 @@ use {
     serde_json::Value,
 };
 
-/// Database connection pool manager
+/// High-performance database connection pool manager.
+///
+/// `DatabasePool` manages a pool of database connections for efficient resource
+/// utilization and optimal performance. It provides async methods for executing
+/// queries, managing transactions, and handling database operations.
+///
+/// # Features
+///
+/// - **Connection Pooling**: Maintains a pool of reusable database connections
+/// - **Async Operations**: All database operations are async and non-blocking
+/// - **Type Safety**: Compile-time query validation with SQLx
+/// - **JSON Support**: Automatic conversion of query results to JSON
+/// - **Transaction Support**: ACID transactions with commit/rollback
+/// - **Error Handling**: Comprehensive error handling and recovery
+///
+/// # Examples
+///
+/// ## Basic Connection
+///
+/// ```rust
+/// use torch_web::database::DatabasePool;
+///
+/// let db = DatabasePool::new("postgresql://user:pass@localhost/mydb").await?;
+/// ```
+///
+/// ## Custom Pool Configuration
+///
+/// ```rust
+/// use torch_web::database::DatabasePool;
+///
+/// let db = DatabasePool::with_config(
+///     "postgresql://user:pass@localhost/mydb",
+///     DatabaseConfig {
+///         max_connections: 50,
+///         min_connections: 5,
+///         acquire_timeout: Duration::from_secs(30),
+///         idle_timeout: Some(Duration::from_secs(600)),
+///         max_lifetime: Some(Duration::from_secs(1800)),
+///     }
+/// ).await?;
+/// ```
+///
+/// ## Query Execution
+///
+/// ```rust
+/// use torch_web::database::DatabasePool;
+///
+/// let db = DatabasePool::new("postgresql://localhost/mydb").await?;
+///
+/// // Simple query
+/// let users = db.query_json("SELECT * FROM users WHERE active = $1", &["true"]).await?;
+///
+/// // Insert with return value
+/// let result = db.execute(
+///     "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id",
+///     &["John Doe", "john@example.com"]
+/// ).await?;
+///
+/// // Query single row
+/// let user = db.query_one_json(
+///     "SELECT * FROM users WHERE id = $1",
+///     &["123"]
+/// ).await?;
+/// ```
+///
+/// ## Transaction Example
+///
+/// ```rust
+/// use torch_web::database::DatabasePool;
+///
+/// let db = DatabasePool::new("postgresql://localhost/mydb").await?;
+///
+/// let mut tx = db.begin_transaction().await?;
+///
+/// // Multiple operations in transaction
+/// tx.execute("UPDATE accounts SET balance = balance - 100 WHERE id = 1").await?;
+/// tx.execute("UPDATE accounts SET balance = balance + 100 WHERE id = 2").await?;
+/// tx.execute("INSERT INTO transfers (from_id, to_id, amount) VALUES (1, 2, 100)").await?;
+///
+/// // Commit all changes
+/// tx.commit().await?;
+/// ```
 pub struct DatabasePool {
     #[cfg(feature = "database")]
     pool: Pool<Postgres>,

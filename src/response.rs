@@ -1,8 +1,90 @@
+//! # HTTP Response Building
+//!
+//! This module provides the [`Response`] struct for building HTTP responses with a
+//! fluent, chainable API. It supports setting status codes, headers, and body content
+//! with convenient methods for common response types.
+
 use http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use http_body_util::Full;
 use hyper::body::Bytes;
 
-/// HTTP Response builder that provides a fluent API for creating responses
+/// HTTP response builder with a fluent API for creating responses.
+///
+/// The `Response` struct provides a convenient, chainable interface for building
+/// HTTP responses. It supports setting status codes, headers, and body content
+/// with type-safe methods and automatic content-type detection.
+///
+/// # Examples
+///
+/// ## Basic Responses
+///
+/// ```rust
+/// use torch_web::Response;
+///
+/// // Simple text response
+/// let response = Response::ok().body("Hello, World!");
+///
+/// // JSON response
+/// let data = serde_json::json!({"message": "Hello", "status": "success"});
+/// let response = Response::ok().json(&data);
+///
+/// // Custom status code
+/// let response = Response::with_status(StatusCode::CREATED)
+///     .body("Resource created");
+/// ```
+///
+/// ## With Headers
+///
+/// ```rust
+/// use torch_web::Response;
+///
+/// let response = Response::ok()
+///     .header("Content-Type", "application/json")
+///     .header("X-API-Version", "1.0")
+///     .header("Cache-Control", "no-cache")
+///     .body(r#"{"data": "value"}"#);
+/// ```
+///
+/// ## Error Responses
+///
+/// ```rust
+/// use torch_web::Response;
+///
+/// // 404 Not Found
+/// let response = Response::not_found();
+///
+/// // 400 Bad Request with custom message
+/// let response = Response::bad_request()
+///     .body("Invalid request parameters");
+///
+/// // 500 Internal Server Error
+/// let response = Response::internal_error()
+///     .body("Something went wrong");
+/// ```
+///
+/// ## Redirects
+///
+/// ```rust
+/// use torch_web::Response;
+///
+/// // Temporary redirect
+/// let response = Response::redirect_temporary("/new-location");
+///
+/// // Permanent redirect
+/// let response = Response::redirect_permanent("/moved-permanently");
+/// ```
+///
+/// ## File Downloads
+///
+/// ```rust
+/// use torch_web::Response;
+///
+/// let file_data = std::fs::read("document.pdf")?;
+/// let response = Response::ok()
+///     .header("Content-Type", "application/pdf")
+///     .header("Content-Disposition", "attachment; filename=\"document.pdf\"")
+///     .body(file_data);
+/// ```
 #[derive(Debug)]
 pub struct Response {
     status: StatusCode,

@@ -1,8 +1,71 @@
+//! # Middleware System
+//!
+//! Torch's middleware system allows you to intercept and modify HTTP requests and responses
+//! as they flow through your application. Middleware can be used for logging, authentication,
+//! CORS, rate limiting, and many other cross-cutting concerns.
+//!
+//! ## How Middleware Works
+//!
+//! Middleware forms a chain where each middleware can:
+//! 1. Inspect and modify the incoming request
+//! 2. Call the next middleware in the chain (or the final handler)
+//! 3. Inspect and modify the outgoing response
+//! 4. Short-circuit the chain by returning early
+//!
+//! ## Examples
+//!
+//! ### Basic Logging Middleware
+//!
+//! ```rust
+//! use torch_web::{App, Request, Response, middleware::Middleware};
+//! use std::pin::Pin;
+//! use std::future::Future;
+//!
+//! struct Logger;
+//!
+//! impl Middleware for Logger {
+//!     fn call(
+//!         &self,
+//!         req: Request,
+//!         next: Box<dyn Fn(Request) -> Pin<Box<dyn Future<Output = Response> + Send + 'static>> + Send + Sync>,
+//!     ) -> Pin<Box<dyn Future<Output = Response> + Send + 'static>> {
+//!         Box::pin(async move {
+//!             println!("{} {}", req.method(), req.path());
+//!             let response = next(req).await;
+//!             println!("Response: {}", response.status_code());
+//!             response
+//!         })
+//!     }
+//! }
+//!
+//! let app = App::new()
+//!     .middleware(Logger)
+//!     .get("/", |_req| async { Response::ok().body("Hello!") });
+//! ```
+//!
+//! ### Function-based Middleware
+//!
+//! ```rust
+//! use torch_web::{App, Request, Response};
+//!
+//! let app = App::new()
+//!     .middleware(|req: Request, next| async move {
+//!         // Add a custom header to all responses
+//!         let mut response = next(req).await;
+//!         response = response.header("X-Powered-By", "Torch");
+//!         response
+//!     })
+//!     .get("/", |_req| async { Response::ok().body("Hello!") });
+//! ```
+
 use std::future::Future;
 use std::pin::Pin;
 use crate::{Request, Response};
 
-/// Function signature for middleware - takes a request and the next handler
+/// Type alias for middleware functions.
+///
+/// This represents the function signature that middleware must implement.
+/// It takes a request and a "next" function that continues the middleware chain.
 pub type MiddlewareFn = std::sync::Arc<
     dyn Fn(
             Request,
@@ -13,9 +76,122 @@ pub type MiddlewareFn = std::sync::Arc<
         + 'static,
 >;
 
-/// Middleware can intercept requests before they reach your handlers
+/// Trait for implementing middleware components.
+///
+/// Middleware can intercept requests before they reach handlers and modify
+/// responses before they're sent to clients. This trait provides a standard
+/// interface for all middleware components.
+///
+/// # Examples
+///
+/// ## Authentication Middleware
+///
+/// ```rust
+/// use torch_web::{Request, Response, middleware::Middleware};
+/// use std::pin::Pin;
+/// use std::future::Future;
+///
+/// struct AuthMiddleware {
+///     secret_key: String,
+/// }
+///
+/// impl AuthMiddleware {
+///     fn new(secret_key: String) -> Self {
+///         Self { secret_key }
+///     }
+/// }
+///
+/// impl Middleware for AuthMiddleware {
+///     fn call(
+///         &self,
+///         req: Request,
+///         next: Box<dyn Fn(Request) -> Pin<Box<dyn Future<Output = Response> + Send + 'static>> + Send + Sync>,
+///     ) -> Pin<Box<dyn Future<Output = Response> + Send + 'static>> {
+///         Box::pin(async move {
+///             // Check for authorization header
+///             if let Some(auth_header) = req.header("authorization") {
+///                 if auth_header.starts_with("Bearer ") {
+///                     // Validate token here...
+///                     return next(req).await;
+///                 }
+///             }
+///
+///             Response::unauthorized().body("Authentication required")
+///         })
+///     }
+/// }
+/// ```
+///
+/// ## CORS Middleware
+///
+/// ```rust
+/// use torch_web::{Request, Response, middleware::Middleware};
+/// use std::pin::Pin;
+/// use std::future::Future;
+///
+/// struct CorsMiddleware;
+///
+/// impl Middleware for CorsMiddleware {
+///     fn call(
+///         &self,
+///         req: Request,
+///         next: Box<dyn Fn(Request) -> Pin<Box<dyn Future<Output = Response> + Send + 'static>> + Send + Sync>,
+///     ) -> Pin<Box<dyn Future<Output = Response> + Send + 'static>> {
+///         Box::pin(async move {
+///             let mut response = next(req).await;
+///             response = response
+///                 .header("Access-Control-Allow-Origin", "*")
+///                 .header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+///                 .header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+///             response
+///         })
+///     }
+/// }
+/// ```
 pub trait Middleware: Send + Sync + 'static {
-    /// Do your thing with the request, then decide whether to continue the chain
+    /// Processes a request through the middleware chain.
+    ///
+    /// This method receives the current request and a `next` function that
+    /// continues processing through the remaining middleware and eventually
+    /// to the route handler.
+    ///
+    /// # Parameters
+    ///
+    /// * `req` - The HTTP request to process
+    /// * `next` - Function to call the next middleware or handler in the chain
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Future` that resolves to the HTTP response. The middleware
+    /// can modify the request before calling `next`, modify the response after
+    /// calling `next`, or return early without calling `next` at all.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use torch_web::{Request, Response, middleware::Middleware};
+    /// use std::pin::Pin;
+    /// use std::future::Future;
+    ///
+    /// struct TimingMiddleware;
+    ///
+    /// impl Middleware for TimingMiddleware {
+    ///     fn call(
+    ///         &self,
+    ///         req: Request,
+    ///         next: Box<dyn Fn(Request) -> Pin<Box<dyn Future<Output = Response> + Send + 'static>> + Send + Sync>,
+    ///     ) -> Pin<Box<dyn Future<Output = Response> + Send + 'static>> {
+    ///         Box::pin(async move {
+    ///             let start = std::time::Instant::now();
+    ///             let response = next(req).await;
+    ///             let duration = start.elapsed();
+    ///
+    ///             println!("Request took {:?}", duration);
+    ///             response.header("X-Response-Time", &format!("{}ms", duration.as_millis()))
+    ///         })
+    ///     }
+    /// }
+    /// ```
     fn call(
         &self,
         req: Request,

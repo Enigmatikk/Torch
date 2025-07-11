@@ -1,31 +1,164 @@
-//! JSON body extraction
+//! # JSON Request Body Extraction
 //!
-//! Extract and deserialize JSON request bodies.
+//! This module provides the [`Json`] extractor for parsing JSON request bodies
+//! into strongly-typed Rust structs using serde. It automatically validates
+//! content types, parses JSON, and provides detailed error messages.
 
 use std::pin::Pin;
 use std::future::Future;
 use crate::{Request, extractors::{FromRequest, ExtractionError}};
 use serde::de::DeserializeOwned;
 
-/// Extract and deserialize a JSON request body
+/// Extractor for JSON request bodies.
 ///
-/// # Example
+/// The `Json` extractor automatically parses JSON request bodies into strongly-typed
+/// Rust structs using serde. It validates the `Content-Type` header, parses the JSON,
+/// and provides detailed error messages for invalid data.
 ///
-/// ```rust,no_run
-/// use torch_web::extractors::Json;
-/// use serde::Deserialize;
+/// **Note**: This extractor requires the `json` feature to be enabled.
 ///
-/// #[derive(Deserialize)]
+/// # Content Type Validation
+///
+/// The extractor expects the request to have a `Content-Type` header of `application/json`.
+/// If the header is missing or has a different value, extraction will fail with a
+/// `400 Bad Request` response.
+///
+/// # Error Handling
+///
+/// JSON extraction can fail for several reasons:
+/// - **Missing or invalid Content-Type**: Returns 400 with error message
+/// - **Invalid JSON syntax**: Returns 400 with parsing error details
+/// - **Validation errors**: Returns 400 with field-specific error messages
+/// - **Type conversion errors**: Returns 400 with type mismatch details
+///
+/// # Examples
+///
+/// ## Basic Usage
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::Json};
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Deserialize, Serialize)]
 /// struct CreateUser {
 ///     name: String,
 ///     email: String,
 ///     age: Option<u32>,
 /// }
 ///
-/// async fn create_user(Json(user): Json<CreateUser>) {
-///     // user is automatically deserialized from the JSON body
-///     println!("Creating user: {}", user.name);
+/// let app = App::new()
+///     .post("/users", |Json(user): Json<CreateUser>| async move {
+///         println!("Creating user: {} ({})", user.name, user.email);
+///         Response::created().json(&user)
+///     });
+/// ```
+///
+/// ## With Validation
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::Json};
+/// use serde::Deserialize;
+///
+/// #[derive(Deserialize)]
+/// struct LoginRequest {
+///     username: String,
+///     password: String,
 /// }
+///
+/// let app = App::new()
+///     .post("/login", |Json(login): Json<LoginRequest>| async move {
+///         if login.username.is_empty() || login.password.is_empty() {
+///             return Response::bad_request().body("Username and password required");
+///         }
+///
+///         // Authenticate user...
+///         Response::ok().json(&serde_json::json!({
+///             "token": "jwt-token-here",
+///             "user": login.username
+///         }))
+///     });
+/// ```
+///
+/// ## Nested Structures
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::Json};
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Deserialize, Serialize)]
+/// struct Address {
+///     street: String,
+///     city: String,
+///     country: String,
+/// }
+///
+/// #[derive(Deserialize, Serialize)]
+/// struct CreateUser {
+///     name: String,
+///     email: String,
+///     address: Address,
+///     tags: Vec<String>,
+/// }
+///
+/// let app = App::new()
+///     .post("/users", |Json(user): Json<CreateUser>| async move {
+///         println!("User {} lives in {}", user.name, user.address.city);
+///         Response::created().json(&user)
+///     });
+/// ```
+///
+/// ## Optional Fields and Defaults
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::Json};
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Deserialize, Serialize)]
+/// struct UpdateUser {
+///     name: Option<String>,
+///     email: Option<String>,
+///     #[serde(default)]
+///     active: bool,
+///     #[serde(default = "default_role")]
+///     role: String,
+/// }
+///
+/// fn default_role() -> String {
+///     "user".to_string()
+/// }
+///
+/// let app = App::new()
+///     .patch("/users/:id", |Json(update): Json<UpdateUser>| async move {
+///         println!("Updating user with role: {}", update.role);
+///         Response::ok().json(&update)
+///     });
+/// ```
+///
+/// ## Combined with Other Extractors
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::{Json, Path, Headers}};
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Deserialize, Serialize)]
+/// struct UpdatePost {
+///     title: Option<String>,
+///     content: Option<String>,
+/// }
+///
+/// let app = App::new()
+///     .put("/posts/:id", |
+///         Path(id): Path<u32>,
+///         Json(update): Json<UpdatePost>,
+///         headers: Headers,
+///     | async move {
+///         if let Some(auth) = headers.authorization() {
+///             println!("Updating post {} with auth", id);
+///             Response::ok().json(&update)
+///         } else {
+///             Response::unauthorized().body("Authentication required")
+///         }
+///     });
 /// ```
 pub struct Json<T>(pub T);
 

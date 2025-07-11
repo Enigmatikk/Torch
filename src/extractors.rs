@@ -1,28 +1,106 @@
-//! # Extractors
+//! # Request Extractors
 //!
-//! Extractors allow you to declaratively parse requests and extract the data you need.
-//! They provide a type-safe way to access request components like path parameters,
-//! query strings, JSON bodies, headers, and application state.
+//! Extractors provide a powerful, type-safe way to parse and extract data from HTTP requests.
+//! They allow you to declaratively specify what data you need from a request, and the framework
+//! will automatically parse and validate it for you.
 //!
-//! ## Example
+//! ## Available Extractors
 //!
-//! ```rust,no_run
-//! use torch_web::{App, extractors::*};
+//! - **[`Path<T>`]** - Extract path parameters from the URL
+//! - **[`Query<T>`]** - Extract and parse query string parameters
+//! - **[`Json<T>`]** - Parse JSON request bodies (requires `json` feature)
+//! - **[`Form<T>`]** - Parse form-encoded request bodies
+//! - **[`Headers`]** - Access request headers with convenience methods
+//! - **[`State<T>`]** - Access application state
+//! - **[`Cookies`]** - Access and manage HTTP cookies
+//!
+//! ## Basic Usage
+//!
+//! Extractors are used as function parameters in your handlers. The framework automatically
+//! calls the appropriate extractor based on the parameter type:
+//!
+//! ```rust
+//! use torch_web::{App, Request, Response, extractors::*};
 //! use serde::Deserialize;
 //!
 //! #[derive(Deserialize)]
-//! struct User {
+//! struct CreateUser {
 //!     name: String,
 //!     email: String,
 //! }
 //!
-//! async fn create_user(
-//!     Path(user_id): Path<u32>,
-//!     Query(params): Query<std::collections::HashMap<String, String>>,
-//!     Json(user): Json<User>,
-//! ) -> Response {
-//!     // user_id, params, and user are all type-safe and validated
-//!     Response::ok().json(&user).unwrap()
+//! #[derive(Deserialize)]
+//! struct Pagination {
+//!     page: Option<u32>,
+//!     limit: Option<u32>,
+//! }
+//!
+//! let app = App::new()
+//!     // Extract path parameter
+//!     .get("/users/:id", |Path(id): Path<u32>| async move {
+//!         Response::ok().body(format!("User ID: {}", id))
+//!     })
+//!
+//!     // Extract query parameters
+//!     .get("/users", |Query(pagination): Query<Pagination>| async move {
+//!         let page = pagination.page.unwrap_or(1);
+//!         let limit = pagination.limit.unwrap_or(10);
+//!         Response::ok().body(format!("Page {} with {} items", page, limit))
+//!     })
+//!
+//!     // Extract JSON body
+//!     .post("/users", |Json(user): Json<CreateUser>| async move {
+//!         Response::created().json(&user)
+//!     })
+//!
+//!     // Combine multiple extractors
+//!     .put("/users/:id", |
+//!         Path(id): Path<u32>,
+//!         Json(user): Json<CreateUser>,
+//!         headers: Headers,
+//!     | async move {
+//!         if let Some(auth) = headers.authorization() {
+//!             Response::ok().body(format!("Updated user {} with auth", id))
+//!         } else {
+//!             Response::unauthorized().body("Authentication required")
+//!         }
+//!     });
+//! ```
+//!
+//! ## Error Handling
+//!
+//! Extractors automatically handle parsing errors and return appropriate HTTP error responses:
+//!
+//! - **Path extraction errors** → 404 Not Found
+//! - **Query parsing errors** → 400 Bad Request
+//! - **JSON parsing errors** → 400 Bad Request with error details
+//! - **Missing required data** → 400 Bad Request
+//!
+//! ## Custom Extractors
+//!
+//! You can create custom extractors by implementing the [`FromRequest`] or [`FromRequestParts`] traits:
+//!
+//! ```rust
+//! use torch_web::{Request, Response, extractors::*};
+//! use std::pin::Pin;
+//! use std::future::Future;
+//!
+//! struct ApiKey(String);
+//!
+//! impl FromRequestParts for ApiKey {
+//!     type Error = Response;
+//!
+//!     fn from_request_parts(
+//!         req: &Request,
+//!     ) -> Pin<Box<dyn Future<Output = Result<Self, Self::Error>> + Send + 'static>> {
+//!         let api_key = req.header("x-api-key")
+//!             .map(|s| s.to_string())
+//!             .ok_or_else(|| Response::unauthorized().body("API key required"));
+//!
+//!         Box::pin(async move {
+//!             api_key.map(ApiKey)
+//!         })
+//!     }
 //! }
 //! ```
 
@@ -32,18 +110,107 @@ use std::pin::Pin;
 use crate::{Request, Response};
 use http::StatusCode;
 
-/// Trait for extracting data from the complete request
+/// Trait for extracting data from the complete HTTP request.
+///
+/// This trait is used for extractors that need access to the entire request,
+/// including the request body. Examples include JSON body parsing, form data
+/// extraction, and any extractor that needs to consume the request body.
+///
+/// # Type Parameters
+///
+/// * `Self` - The type that will be extracted from the request
+///
+/// # Associated Types
+///
+/// * `Error` - The error type returned when extraction fails. Must implement
+///   [`IntoResponse`] so it can be converted to an HTTP response.
+///
+/// # Examples
+///
+/// ```rust
+/// use torch_web::{Request, Response, extractors::*};
+/// use std::pin::Pin;
+/// use std::future::Future;
+///
+/// struct CustomBody(Vec<u8>);
+///
+/// impl FromRequest for CustomBody {
+///     type Error = Response;
+///
+///     fn from_request(
+///         req: Request,
+///     ) -> Pin<Box<dyn Future<Output = Result<(Self, Request), Self::Error>> + Send + 'static>> {
+///         Box::pin(async move {
+///             let body = req.body().to_vec();
+///             Ok((CustomBody(body), req))
+///         })
+///     }
+/// }
+/// ```
 pub trait FromRequest: Sized {
     /// The error type returned when extraction fails
     type Error: IntoResponse + Send + Sync;
 
-    /// Extract data from the request
+    /// Extracts data from the complete request.
+    ///
+    /// This method receives the entire request and should return both the extracted
+    /// data and the (potentially modified) request for further processing.
+    ///
+    /// # Parameters
+    ///
+    /// * `req` - The HTTP request to extract data from
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Future` that resolves to either:
+    /// - `Ok((Self, Request))` - The extracted data and the request
+    /// - `Err(Self::Error)` - An error that can be converted to an HTTP response
     fn from_request(
         req: Request,
     ) -> Pin<Box<dyn Future<Output = Result<(Self, Request), Self::Error>> + Send + 'static>>;
 }
 
-/// Trait for extracting data from request parts (without consuming the body)
+/// Trait for extracting data from request parts without consuming the body.
+///
+/// This trait is used for extractors that only need access to request metadata
+/// like headers, path parameters, query parameters, or the request method/URI.
+/// These extractors don't consume the request body, allowing multiple extractors
+/// to be used together.
+///
+/// # Type Parameters
+///
+/// * `Self` - The type that will be extracted from the request
+///
+/// # Associated Types
+///
+/// * `Error` - The error type returned when extraction fails. Must implement
+///   [`IntoResponse`] so it can be converted to an HTTP response.
+///
+/// # Examples
+///
+/// ```rust
+/// use torch_web::{Request, Response, extractors::*};
+/// use std::pin::Pin;
+/// use std::future::Future;
+///
+/// struct UserAgent(String);
+///
+/// impl FromRequestParts for UserAgent {
+///     type Error = Response;
+///
+///     fn from_request_parts(
+///         req: &Request,
+///     ) -> Pin<Box<dyn Future<Output = Result<Self, Self::Error>> + Send + 'static>> {
+///         let user_agent = req.header("user-agent")
+///             .unwrap_or("Unknown")
+///             .to_string();
+///
+///         Box::pin(async move {
+///             Ok(UserAgent(user_agent))
+///         })
+///     }
+/// }
+/// ```
 pub trait FromRequestParts: Sized {
     /// The error type returned when extraction fails
     type Error: IntoResponse + Send + Sync;

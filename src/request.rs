@@ -1,3 +1,9 @@
+//! # HTTP Request Handling
+//!
+//! This module provides the [`Request`] struct, which wraps HTTP requests and provides
+//! convenient methods for accessing request data like headers, body, path parameters,
+//! and query parameters.
+
 use std::collections::HashMap;
 use std::any::{Any, TypeId};
 use std::sync::Arc;
@@ -6,7 +12,77 @@ use http_body_util::BodyExt;
 use hyper::body::Incoming;
 use crate::extractors::state::StateMap;
 
-/// HTTP Request wrapper that provides convenient access to request data
+/// HTTP request wrapper that provides convenient access to request data.
+///
+/// The `Request` struct encapsulates all the information about an incoming HTTP request,
+/// including the method, URI, headers, body, and extracted path parameters. It provides
+/// a high-level API for accessing this data in handlers.
+///
+/// # Examples
+///
+/// ## Basic Usage in Handlers
+///
+/// ```rust
+/// use torch_web::{App, Request, Response};
+///
+/// let app = App::new()
+///     .get("/", |req: Request| async move {
+///         println!("Method: {}", req.method());
+///         println!("Path: {}", req.path());
+///         Response::ok().body("Hello!")
+///     });
+/// ```
+///
+/// ## Accessing Headers
+///
+/// ```rust
+/// use torch_web::{App, Request, Response};
+///
+/// let app = App::new()
+///     .post("/api/data", |req: Request| async move {
+///         if let Some(content_type) = req.header("content-type") {
+///             println!("Content-Type: {}", content_type);
+///         }
+///
+///         if let Some(auth) = req.header("authorization") {
+///             println!("Authorization: {}", auth);
+///         }
+///
+///         Response::ok().body("Received")
+///     });
+/// ```
+///
+/// ## Working with Request Body
+///
+/// ```rust
+/// use torch_web::{App, Request, Response};
+///
+/// let app = App::new()
+///     .post("/upload", |req: Request| async move {
+///         let body_bytes = req.body();
+///         println!("Received {} bytes", body_bytes.len());
+///
+///         if let Ok(body_text) = req.body_string() {
+///             println!("Body: {}", body_text);
+///         }
+///
+///         Response::ok().body("Upload complete")
+///     });
+/// ```
+///
+/// ## Path Parameters
+///
+/// ```rust
+/// use torch_web::{App, Request, Response};
+///
+/// let app = App::new()
+///     .get("/users/:id/posts/:post_id", |req: Request| async move {
+///         let user_id = req.param("id").unwrap_or("unknown");
+///         let post_id = req.param("post_id").unwrap_or("unknown");
+///
+///         Response::ok().body(format!("User {} Post {}", user_id, post_id))
+///     });
+/// ```
 #[derive(Debug)]
 pub struct Request {
     method: Method,
@@ -20,7 +96,20 @@ pub struct Request {
 }
 
 impl Request {
-    /// Create a simple empty request (for internal use)
+    /// Creates a new empty request with default values.
+    ///
+    /// This is primarily used for testing and internal purposes. In normal operation,
+    /// requests are created from incoming HTTP requests via `from_hyper`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use torch_web::Request;
+    ///
+    /// let req = Request::new();
+    /// assert_eq!(req.path(), "/");
+    /// assert_eq!(req.method().as_str(), "GET");
+    /// ```
     pub fn new() -> Self {
         Self {
             method: Method::GET,
@@ -34,15 +123,48 @@ impl Request {
         }
     }
 
-    /// Create a new Request from hyper's request parts and body
+    /// Creates a new Request from Hyper's request parts and body.
+    ///
+    /// This is an internal method used by the framework to convert incoming
+    /// Hyper requests into Torch Request objects. It reads the entire request
+    /// body into memory and parses query parameters.
+    ///
+    /// # Parameters
+    ///
+    /// * `parts` - The HTTP request parts (method, URI, headers, etc.)
+    /// * `body` - The request body stream
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result` containing the constructed `Request` or an error if
+    /// the body cannot be read or the request is malformed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use torch_web::Request;
+    /// use hyper::body::Incoming;
+    /// use http::request::Parts;
+    ///
+    /// async fn handle_hyper_request(parts: Parts, body: Incoming) {
+    ///     match Request::from_hyper(parts, body).await {
+    ///         Ok(req) => {
+    ///             println!("Received request to {}", req.path());
+    ///         }
+    ///         Err(e) => {
+    ///             eprintln!("Failed to parse request: {}", e);
+    ///         }
+    ///     }
+    /// }
+    /// ```
     pub async fn from_hyper(
         parts: http::request::Parts,
         body: Incoming,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let body_bytes = body.collect().await?.to_bytes().to_vec();
-        
+
         let query = Self::parse_query_string(parts.uri.query().unwrap_or(""));
-        
+
         Ok(Request {
             method: parts.method,
             uri: parts.uri,
@@ -55,42 +177,197 @@ impl Request {
         })
     }
 
-    /// Get the HTTP method
+    /// Returns the HTTP method of the request.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use torch_web::{App, Request, Response, Method};
+    ///
+    /// let app = App::new()
+    ///     .route(Method::POST, "/api/data", |req: Request| async move {
+    ///         match req.method() {
+    ///             &Method::POST => Response::ok().body("POST request"),
+    ///             &Method::GET => Response::ok().body("GET request"),
+    ///             _ => Response::method_not_allowed().body("Method not allowed"),
+    ///         }
+    ///     });
+    /// ```
     pub fn method(&self) -> &Method {
         &self.method
     }
 
-    /// Get the URI
+    /// Returns the complete URI of the request.
+    ///
+    /// This includes the path, query string, and fragment (if present).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use torch_web::{App, Request, Response};
+    ///
+    /// let app = App::new()
+    ///     .get("/debug", |req: Request| async move {
+    ///         let uri = req.uri();
+    ///         Response::ok().body(format!("Full URI: {}", uri))
+    ///     });
+    /// ```
     pub fn uri(&self) -> &Uri {
         &self.uri
     }
 
-    /// Get the path from the URI
+    /// Returns the path portion of the request URI.
+    ///
+    /// This excludes the query string and fragment, returning only the path component.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use torch_web::{App, Request, Response};
+    ///
+    /// let app = App::new()
+    ///     .get("/users/:id", |req: Request| async move {
+    ///         println!("Request path: {}", req.path()); // "/users/123"
+    ///         Response::ok().body("User page")
+    ///     });
+    /// ```
     pub fn path(&self) -> &str {
         self.uri.path()
     }
 
-    /// Get the HTTP version
+    /// Returns the HTTP version of the request.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use torch_web::{App, Request, Response};
+    /// use http::Version;
+    ///
+    /// let app = App::new()
+    ///     .get("/version", |req: Request| async move {
+    ///         let version = match req.version() {
+    ///             Version::HTTP_09 => "HTTP/0.9",
+    ///             Version::HTTP_10 => "HTTP/1.0",
+    ///             Version::HTTP_11 => "HTTP/1.1",
+    ///             Version::HTTP_2 => "HTTP/2.0",
+    ///             Version::HTTP_3 => "HTTP/3.0",
+    ///             _ => "Unknown",
+    ///         };
+    ///         Response::ok().body(format!("HTTP Version: {}", version))
+    ///     });
+    /// ```
     pub fn version(&self) -> Version {
         self.version
     }
 
-    /// Get the headers
+    /// Returns a reference to the request headers.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use torch_web::{App, Request, Response};
+    ///
+    /// let app = App::new()
+    ///     .post("/api/data", |req: Request| async move {
+    ///         let headers = req.headers();
+    ///
+    ///         for (name, value) in headers.iter() {
+    ///             println!("{}: {:?}", name, value);
+    ///         }
+    ///
+    ///         Response::ok().body("Headers logged")
+    ///     });
+    /// ```
     pub fn headers(&self) -> &HeaderMap {
         &self.headers
     }
 
-    /// Get a specific header value
+    /// Returns the value of a specific header.
+    ///
+    /// This is a convenience method that looks up a header by name and converts
+    /// it to a string. Returns `None` if the header doesn't exist or contains
+    /// invalid UTF-8.
+    ///
+    /// # Parameters
+    ///
+    /// * `name` - The header name to look up (case-insensitive)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use torch_web::{App, Request, Response};
+    ///
+    /// let app = App::new()
+    ///     .post("/api/upload", |req: Request| async move {
+    ///         if let Some(content_type) = req.header("content-type") {
+    ///             println!("Content-Type: {}", content_type);
+    ///
+    ///             if content_type.starts_with("application/json") {
+    ///                 return Response::ok().body("JSON data received");
+    ///             }
+    ///         }
+    ///
+    ///         Response::bad_request().body("Content-Type required")
+    ///     });
+    /// ```
     pub fn header(&self, name: &str) -> Option<&str> {
         self.headers.get(name)?.to_str().ok()
     }
 
-    /// Get the request body as bytes
+    /// Returns the request body as a byte slice.
+    ///
+    /// The entire request body is read into memory when the request is created,
+    /// so this method provides immediate access to the raw bytes.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use torch_web::{App, Request, Response};
+    ///
+    /// let app = App::new()
+    ///     .post("/upload", |req: Request| async move {
+    ///         let body_bytes = req.body();
+    ///         println!("Received {} bytes", body_bytes.len());
+    ///
+    ///         // Process binary data
+    ///         if body_bytes.starts_with(b"PNG") {
+    ///             Response::ok().body("PNG image received")
+    ///         } else {
+    ///             Response::ok().body("Data received")
+    ///         }
+    ///     });
+    /// ```
     pub fn body(&self) -> &[u8] {
         &self.body
     }
 
-    /// Get the request body as a string
+    /// Returns the request body as a UTF-8 string.
+    ///
+    /// This method attempts to convert the request body bytes into a valid UTF-8 string.
+    /// Returns an error if the body contains invalid UTF-8 sequences.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(String)` if the body is valid UTF-8, or `Err(FromUtf8Error)` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use torch_web::{App, Request, Response};
+    ///
+    /// let app = App::new()
+    ///     .post("/text", |req: Request| async move {
+    ///         match req.body_string() {
+    ///             Ok(text) => {
+    ///                 println!("Received text: {}", text);
+    ///                 Response::ok().body(format!("Echo: {}", text))
+    ///             }
+    ///             Err(_) => {
+    ///                 Response::bad_request().body("Invalid UTF-8 in request body")
+    ///             }
+    ///         }
+    ///     });
+    /// ```
     pub fn body_string(&self) -> Result<String, std::string::FromUtf8Error> {
         String::from_utf8(self.body.clone())
     }

@@ -1,6 +1,8 @@
-//! Path parameter extraction
+//! # Path Parameter Extraction
 //!
-//! Extract and deserialize path parameters from the URL.
+//! This module provides the [`Path`] extractor for extracting and deserializing
+//! path parameters from URL patterns. It supports extracting single values,
+//! tuples, and custom structs with automatic type conversion and validation.
 
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -8,34 +10,106 @@ use std::future::Future;
 use std::str::FromStr;
 use crate::{Request, extractors::{FromRequestParts, ExtractionError}};
 
-/// Extract path parameters from the request URL
+/// Extractor for path parameters from URL patterns.
 ///
-/// # Example
+/// The `Path` extractor allows you to extract parameters from URL patterns like
+/// `/users/:id` or `/posts/:user_id/comments/:comment_id`. It automatically
+/// parses and validates the parameters according to the target type.
 ///
-/// ```rust,no_run
-/// use torch_web::extractors::Path;
+/// # Supported Types
 ///
-/// // Extract a single parameter
-/// async fn get_user(Path(user_id): Path<u32>) {
-///     // user_id is automatically parsed from the URL
-/// }
+/// - **Primitive types**: `u32`, `i32`, `u64`, `String`, `bool`, etc.
+/// - **Tuples**: Extract multiple parameters as `(T1, T2, ...)`
+/// - **Custom structs**: Use serde to deserialize into custom types
+/// - **Optional types**: Use `Option<T>` for optional parameters
 ///
-/// // Extract multiple parameters as a tuple
-/// async fn get_post(Path((user_id, post_id)): Path<(u32, u32)>) {
-///     // Extracts from "/users/:user_id/posts/:post_id"
-/// }
+/// # URL Pattern Syntax
 ///
-/// // Extract into a custom struct
-/// #[derive(serde::Deserialize)]
+/// Path parameters are defined using the `:name` syntax in route patterns:
+/// - `/users/:id` - Single parameter
+/// - `/users/:user_id/posts/:post_id` - Multiple parameters
+/// - `/files/*path` - Wildcard parameter (captures remaining path)
+///
+/// # Examples
+///
+/// ## Single Parameter
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::Path};
+///
+/// let app = App::new()
+///     .get("/users/:id", |Path(id): Path<u32>| async move {
+///         Response::ok().body(format!("User ID: {}", id))
+///     });
+/// ```
+///
+/// ## Multiple Parameters as Tuple
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::Path};
+///
+/// let app = App::new()
+///     .get("/users/:user_id/posts/:post_id", |
+///         Path((user_id, post_id)): Path<(u32, u32)>
+///     | async move {
+///         Response::ok().body(format!("User {} Post {}", user_id, post_id))
+///     });
+/// ```
+///
+/// ## Custom Struct with Serde
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::Path};
+/// use serde::Deserialize;
+///
+/// #[derive(Deserialize)]
 /// struct PostPath {
 ///     user_id: u32,
 ///     post_id: u32,
 /// }
 ///
-/// async fn get_post_struct(Path(path): Path<PostPath>) {
-///     // Automatically deserializes path parameters
-/// }
+/// let app = App::new()
+///     .get("/users/:user_id/posts/:post_id", |Path(path): Path<PostPath>| async move {
+///         Response::ok().body(format!("User {} Post {}", path.user_id, path.post_id))
+///     });
 /// ```
+///
+/// ## Optional Parameters
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::Path};
+///
+/// let app = App::new()
+///     .get("/files/:category/:filename", |
+///         Path((category, filename)): Path<(String, Option<String>)>
+///     | async move {
+///         match filename {
+///             Some(name) => Response::ok().body(format!("File: {}/{}", category, name)),
+///             None => Response::ok().body(format!("Category: {}", category)),
+///         }
+///     });
+/// ```
+///
+/// ## String Parameters
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::Path};
+///
+/// let app = App::new()
+///     .get("/search/:query", |Path(query): Path<String>| async move {
+///         Response::ok().body(format!("Searching for: {}", query))
+///     });
+/// ```
+///
+/// # Error Handling
+///
+/// Path extraction can fail in several cases:
+/// - **Missing parameter**: The URL doesn't contain the expected parameter
+/// - **Type conversion error**: The parameter value can't be parsed into the target type
+/// - **Validation error**: Custom validation rules fail
+///
+/// When extraction fails, a `400 Bad Request` response is automatically returned
+/// with details about the error.
 pub struct Path<T>(pub T);
 
 impl<T> FromRequestParts for Path<T>

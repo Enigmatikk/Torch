@@ -1,6 +1,6 @@
 [package]
 name = "torch-web"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 authors = ["Dragos Ionut <dragosionut@keemail.me>"]
 description = "Fast, secure web framework for Rust with production-ready features out of the box"

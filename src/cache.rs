@@ -1,4 +1,98 @@
-//! High-performance caching with Redis and in-memory support
+//! # High-Performance Caching
+//!
+//! This module provides comprehensive caching solutions for Torch applications,
+//! including both in-memory and Redis-based caching. It supports response caching,
+//! data caching, and cache middleware for automatic request/response caching.
+//!
+//! ## Features
+//!
+//! - **In-Memory Cache**: Fast, local caching with TTL support
+//! - **Redis Cache**: Distributed caching with Redis backend
+//! - **Response Caching**: Automatic HTTP response caching middleware
+//! - **TTL Support**: Time-to-live expiration for cache entries
+//! - **Cache Invalidation**: Manual and automatic cache invalidation
+//! - **Serialization**: JSON serialization for complex data types
+//!
+//! ## Cache Types
+//!
+//! ### In-Memory Cache
+//! Fast, local caching that stores data in application memory. Best for:
+//! - Single-instance applications
+//! - Frequently accessed data
+//! - Low-latency requirements
+//!
+//! ### Redis Cache
+//! Distributed caching using Redis as the backend. Best for:
+//! - Multi-instance applications
+//! - Shared cache across services
+//! - Persistent caching
+//! - Large cache sizes
+//!
+//! ## Examples
+//!
+//! ### Basic In-Memory Caching
+//!
+//! ```rust
+//! use torch_web::{App, cache::MemoryCache};
+//! use std::time::Duration;
+//!
+//! let cache = MemoryCache::new(Some(Duration::from_secs(300))); // 5 minute TTL
+//!
+//! let app = App::new()
+//!     .with_state(cache)
+//!     .get("/data/:id", |Path(id): Path<u32>, State(cache): State<MemoryCache>| async move {
+//!         let cache_key = format!("data:{}", id);
+//!
+//!         // Try to get from cache first
+//!         if let Some(cached_data) = cache.get(&cache_key).await {
+//!             return Response::ok()
+//!                 .header("X-Cache", "HIT")
+//!                 .body(cached_data);
+//!         }
+//!
+//!         // Fetch data (expensive operation)
+//!         let data = fetch_data_from_database(id).await;
+//!
+//!         // Cache the result
+//!         cache.set(&cache_key, &data, None).await;
+//!
+//!         Response::ok()
+//!             .header("X-Cache", "MISS")
+//!             .body(data)
+//!     });
+//! ```
+//!
+//! ### Redis Caching
+//!
+//! ```rust
+//! use torch_web::{App, cache::RedisCache};
+//!
+//! let cache = RedisCache::new("redis://localhost:6379").await?;
+//!
+//! let app = App::new()
+//!     .with_state(cache)
+//!     .get("/users/:id", |Path(id): Path<u32>, State(cache): State<RedisCache>| async move {
+//!         let cache_key = format!("user:{}", id);
+//!
+//!         if let Some(user_json) = cache.get(&cache_key).await? {
+//!             return Response::ok()
+//!                 .header("Content-Type", "application/json")
+//!                 .header("X-Cache", "HIT")
+//!                 .body(user_json);
+//!         }
+//!
+//!         let user = get_user_from_db(id).await?;
+//!         let user_json = serde_json::to_string(&user)?;
+//!
+//!         // Cache for 1 hour
+//!         cache.set(&cache_key, &user_json, Some(Duration::from_secs(3600))).await?;
+//!
+//!         Response::ok()
+//!             .header("Content-Type", "application/json")
+//!             .header("X-Cache", "MISS")
+//!             .body(user_json)
+//!     });
+//! ```
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -21,7 +115,10 @@ struct CachedResponse {
     body: String,
 }
 
-/// Cache entry with expiration
+/// Internal cache entry with expiration tracking.
+///
+/// This struct represents a single cache entry with its value and optional
+/// expiration time. It's used internally by the cache implementations.
 #[derive(Debug, Clone)]
 struct CacheEntry {
     value: String,
@@ -29,6 +126,7 @@ struct CacheEntry {
 }
 
 impl CacheEntry {
+    /// Creates a new cache entry with optional TTL.
     fn new(value: String, ttl: Option<Duration>) -> Self {
         Self {
             value,
@@ -36,12 +134,97 @@ impl CacheEntry {
         }
     }
 
+    /// Checks if this cache entry has expired.
     fn is_expired(&self) -> bool {
         self.expires_at.map_or(false, |expires_at| Instant::now() > expires_at)
     }
 }
 
-/// In-memory cache implementation
+/// High-performance in-memory cache implementation.
+///
+/// `MemoryCache` provides fast, local caching with automatic expiration support.
+/// It's ideal for single-instance applications or when you need very low latency
+/// cache access. The cache is thread-safe and supports concurrent reads and writes.
+///
+/// # Features
+///
+/// - **Thread-safe**: Safe for concurrent access from multiple threads
+/// - **TTL Support**: Automatic expiration of cache entries
+/// - **Memory efficient**: Expired entries are cleaned up automatically
+/// - **Fast access**: O(1) average case for get/set operations
+/// - **Flexible TTL**: Per-entry TTL or default TTL for all entries
+///
+/// # Examples
+///
+/// ## Basic Usage
+///
+/// ```rust
+/// use torch_web::cache::MemoryCache;
+/// use std::time::Duration;
+///
+/// let cache = MemoryCache::new(Some(Duration::from_secs(300))); // 5 minute default TTL
+///
+/// // Set a value with default TTL
+/// cache.set("user:123", "John Doe", None).await;
+///
+/// // Set a value with custom TTL
+/// cache.set("session:abc", "active", Some(Duration::from_secs(3600))).await;
+///
+/// // Get a value
+/// if let Some(name) = cache.get("user:123").await {
+///     println!("User name: {}", name);
+/// }
+/// ```
+///
+/// ## With JSON Serialization
+///
+/// ```rust
+/// use torch_web::cache::MemoryCache;
+/// use serde::{Serialize, Deserialize};
+///
+/// #[derive(Serialize, Deserialize)]
+/// struct User {
+///     id: u32,
+///     name: String,
+///     email: String,
+/// }
+///
+/// let cache = MemoryCache::new(None); // No default TTL
+///
+/// let user = User {
+///     id: 123,
+///     name: "John Doe".to_string(),
+///     email: "john@example.com".to_string(),
+/// };
+///
+/// // Serialize and cache
+/// let user_json = serde_json::to_string(&user)?;
+/// cache.set("user:123", &user_json, Some(Duration::from_secs(3600))).await;
+///
+/// // Retrieve and deserialize
+/// if let Some(cached_json) = cache.get("user:123").await {
+///     let cached_user: User = serde_json::from_str(&cached_json)?;
+///     println!("Cached user: {}", cached_user.name);
+/// }
+/// ```
+///
+/// ## Cache Invalidation
+///
+/// ```rust
+/// use torch_web::cache::MemoryCache;
+///
+/// let cache = MemoryCache::new(None);
+///
+/// // Set some values
+/// cache.set("key1", "value1", None).await;
+/// cache.set("key2", "value2", None).await;
+///
+/// // Remove a specific key
+/// cache.delete("key1").await;
+///
+/// // Clear all entries
+/// cache.clear().await;
+/// ```
 pub struct MemoryCache {
     store: Arc<RwLock<HashMap<String, CacheEntry>>>,
     default_ttl: Option<Duration>,

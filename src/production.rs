@@ -1,4 +1,58 @@
-//! Production-ready features for high-scale applications
+//! # Production-Ready Features
+//!
+//! This module provides enterprise-grade features for deploying Torch applications
+//! in production environments. It includes performance monitoring, metrics collection,
+//! request timeouts, rate limiting, and other essential production middleware.
+//!
+//! ## Key Features
+//!
+//! - **Performance Monitoring**: Track request latency, throughput, and resource usage
+//! - **Metrics Collection**: Collect and export metrics for monitoring systems
+//! - **Request Timeouts**: Prevent long-running requests from consuming resources
+//! - **Rate Limiting**: Protect against abuse and DoS attacks
+//! - **Health Checks**: Built-in health check endpoints
+//! - **Graceful Shutdown**: Handle shutdown signals gracefully
+//! - **Connection Limits**: Control concurrent connection limits
+//!
+//! ## Quick Start
+//!
+//! ```rust
+//! use torch_web::{App, production::*};
+//!
+//! let app = App::new()
+//!     // Add production middleware
+//!     .middleware(MetricsCollector::new())
+//!     .middleware(PerformanceMonitor)
+//!     .middleware(RequestTimeout::new(Duration::from_secs(30)))
+//!     .middleware(health_check())
+//!
+//!     // Your application routes
+//!     .get("/", |_req| async { Response::ok().body("Hello, Production!") })
+//!     .get("/api/users", |_req| async {
+//!         Response::ok().json(&serde_json::json!({"users": []}))
+//!     });
+//! ```
+//!
+//! ## Production Configuration
+//!
+//! ```rust
+//! use torch_web::{App, production::ProductionConfig};
+//! use std::time::Duration;
+//!
+//! let config = ProductionConfig {
+//!     max_connections: 10_000,
+//!     request_timeout: Duration::from_secs(30),
+//!     max_body_size: 16 * 1024 * 1024, // 16MB
+//!     enable_compression: true,
+//!     enable_http2: true,
+//!     rate_limit_rps: Some(1000),
+//!     ..Default::default()
+//! };
+//!
+//! // Apply configuration to your app
+//! let app = App::with_defaults() // Includes production middleware
+//!     .get("/", |_req| async { Response::ok().body("Production Ready!") });
+//! ```
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -12,26 +66,128 @@ use {
 
 // DashMap import removed as it's not currently used
 
-/// Production server configuration for high-scale applications
+/// Configuration for production server deployment.
+///
+/// This struct contains all the configuration options needed to run a Torch
+/// application in a production environment. It provides sensible defaults
+/// for high-scale applications while allowing customization for specific needs.
+///
+/// # Examples
+///
+/// ## Default Configuration
+///
+/// ```rust
+/// use torch_web::production::ProductionConfig;
+///
+/// let config = ProductionConfig::default();
+/// println!("Max connections: {}", config.max_connections); // 10,000
+/// println!("Request timeout: {:?}", config.request_timeout); // 30 seconds
+/// ```
+///
+/// ## Custom Configuration
+///
+/// ```rust
+/// use torch_web::production::ProductionConfig;
+/// use std::time::Duration;
+///
+/// let config = ProductionConfig {
+///     max_connections: 50_000,
+///     request_timeout: Duration::from_secs(60),
+///     max_body_size: 32 * 1024 * 1024, // 32MB
+///     rate_limit_rps: Some(2000), // 2000 RPS per IP
+///     worker_threads: Some(16), // 16 worker threads
+///     ..Default::default()
+/// };
+/// ```
+///
+/// ## High-Performance Configuration
+///
+/// ```rust
+/// use torch_web::production::ProductionConfig;
+/// use std::time::Duration;
+///
+/// let config = ProductionConfig {
+///     max_connections: 100_000,
+///     request_timeout: Duration::from_secs(15), // Shorter timeout
+///     keep_alive_timeout: Duration::from_secs(30),
+///     max_body_size: 8 * 1024 * 1024, // 8MB limit
+///     enable_compression: true,
+///     enable_http2: true,
+///     rate_limit_rps: Some(5000), // Higher rate limit
+///     worker_threads: Some(32), // More workers
+///     graceful_shutdown_timeout: Duration::from_secs(10),
+/// };
+/// ```
 #[derive(Debug, Clone)]
 pub struct ProductionConfig {
-    /// Maximum number of concurrent connections
+    /// Maximum number of concurrent connections the server will accept.
+    ///
+    /// This limits the total number of active connections to prevent resource
+    /// exhaustion. When this limit is reached, new connections will be rejected.
+    /// Default: 10,000
     pub max_connections: usize,
-    /// Request timeout in seconds
+
+    /// Maximum time to wait for a request to complete.
+    ///
+    /// Requests that take longer than this duration will be automatically
+    /// terminated with a 408 Request Timeout response. This prevents
+    /// slow or malicious clients from consuming server resources.
+    /// Default: 30 seconds
     pub request_timeout: Duration,
-    /// Keep-alive timeout in seconds
+
+    /// How long to keep idle connections alive.
+    ///
+    /// Connections that remain idle for longer than this duration will be
+    /// closed to free up resources. This applies to HTTP/1.1 keep-alive
+    /// connections and HTTP/2 streams.
+    /// Default: 60 seconds
     pub keep_alive_timeout: Duration,
-    /// Maximum request body size in bytes
+
+    /// Maximum size of request bodies in bytes.
+    ///
+    /// Requests with bodies larger than this size will be rejected with
+    /// a 413 Payload Too Large response. This prevents memory exhaustion
+    /// from large uploads.
+    /// Default: 16MB (16 * 1024 * 1024)
     pub max_body_size: usize,
-    /// Enable request/response compression
+
+    /// Whether to enable automatic compression of responses.
+    ///
+    /// When enabled, responses will be compressed using gzip or deflate
+    /// based on the client's Accept-Encoding header. This reduces bandwidth
+    /// usage but increases CPU usage.
+    /// Default: true
     pub enable_compression: bool,
-    /// Number of worker threads
+
+    /// Number of worker threads for the async runtime.
+    ///
+    /// If None, the runtime will use the default number of threads
+    /// (typically equal to the number of CPU cores). Set this to control
+    /// the thread pool size explicitly.
+    /// Default: None (auto-detect)
     pub worker_threads: Option<usize>,
-    /// Enable HTTP/2
+
+    /// Whether to enable HTTP/2 support.
+    ///
+    /// HTTP/2 provides better performance through multiplexing, header
+    /// compression, and server push. Most modern clients support HTTP/2.
+    /// Default: true
     pub enable_http2: bool,
-    /// Rate limiting: requests per second per IP
+
+    /// Rate limit in requests per second per IP address.
+    ///
+    /// If Some(n), each IP address will be limited to n requests per second.
+    /// Requests exceeding this limit will receive a 429 Too Many Requests
+    /// response. If None, no rate limiting is applied.
+    /// Default: Some(1000)
     pub rate_limit_rps: Option<u32>,
-    /// Enable graceful shutdown
+
+    /// Maximum time to wait for graceful shutdown.
+    ///
+    /// When a shutdown signal is received, the server will stop accepting
+    /// new connections and wait up to this duration for existing requests
+    /// to complete before forcefully terminating.
+    /// Default: 30 seconds
     pub graceful_shutdown_timeout: Duration,
 }
 

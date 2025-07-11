@@ -1,4 +1,142 @@
-//! API versioning, documentation, and OpenAPI support
+//! # API Development and Documentation
+//!
+//! This module provides comprehensive tools for building and documenting REST APIs
+//! with Torch. It includes API versioning, automatic OpenAPI/Swagger documentation
+//! generation, endpoint documentation, and API testing utilities.
+//!
+//! ## Features
+//!
+//! - **API Versioning**: Support for multiple API versions with deprecation handling
+//! - **OpenAPI Generation**: Automatic OpenAPI 3.0 specification generation
+//! - **Interactive Documentation**: Built-in Swagger UI for API exploration
+//! - **Endpoint Documentation**: Rich documentation for API endpoints
+//! - **Schema Validation**: Request/response schema validation
+//! - **API Testing**: Built-in testing utilities for API endpoints
+//! - **Rate Limiting**: Per-endpoint rate limiting configuration
+//! - **Authentication**: API key and JWT authentication support
+//!
+//! **Note**: This module requires the `api` feature to be enabled.
+//!
+//! ## Quick Start
+//!
+//! ### Basic API Setup
+//!
+//! ```rust
+//! use torch_web::{App, api::*};
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Deserialize, Serialize)]
+//! struct User {
+//!     id: u32,
+//!     name: String,
+//!     email: String,
+//! }
+//!
+//! let app = App::new()
+//!     // Enable API documentation
+//!     .with_api_docs(ApiDocBuilder::new()
+//!         .title("My API")
+//!         .version("1.0.0")
+//!         .description("A sample API built with Torch"))
+//!
+//!     // API endpoints with documentation
+//!     .get("/api/users", |_req| async {
+//!         let users = vec![
+//!             User { id: 1, name: "Alice".to_string(), email: "alice@example.com".to_string() },
+//!             User { id: 2, name: "Bob".to_string(), email: "bob@example.com".to_string() },
+//!         ];
+//!         Response::ok().json(&users)
+//!     })
+//!     .document_endpoint("/api/users", EndpointDoc::new()
+//!         .method("GET")
+//!         .summary("List all users")
+//!         .description("Returns a list of all users in the system")
+//!         .response(200, ResponseDoc::new()
+//!             .description("List of users")
+//!             .json_schema::<Vec<User>>()))
+//!
+//!     // Swagger UI endpoint
+//!     .get("/docs", |_req| async {
+//!         swagger_ui("/api/openapi.json")
+//!     })
+//!
+//!     // OpenAPI spec endpoint
+//!     .get("/api/openapi.json", |_req| async {
+//!         generate_openapi_spec()
+//!     });
+//! ```
+//!
+//! ### API Versioning
+//!
+//! ```rust
+//! use torch_web::{App, api::*};
+//!
+//! let app = App::new()
+//!     // Version 1 (deprecated)
+//!     .api_version(ApiVersion::new("v1", "Legacy API")
+//!         .deprecated(Some("2024-12-31")))
+//!     .get("/api/v1/users", |_req| async {
+//!         Response::ok()
+//!             .header("Deprecation", "true")
+//!             .header("Sunset", "2024-12-31")
+//!             .json(&legacy_users())
+//!     })
+//!
+//!     // Version 2 (current)
+//!     .api_version(ApiVersion::new("v2", "Current API"))
+//!     .get("/api/v2/users", |_req| async {
+//!         Response::ok().json(&current_users())
+//!     });
+//! ```
+//!
+//! ### Advanced Documentation
+//!
+//! ```rust
+//! use torch_web::{App, api::*, extractors::*};
+//! use serde::{Deserialize, Serialize};
+//!
+//! #[derive(Deserialize)]
+//! struct CreateUserRequest {
+//!     name: String,
+//!     email: String,
+//! }
+//!
+//! #[derive(Serialize)]
+//! struct CreateUserResponse {
+//!     id: u32,
+//!     name: String,
+//!     email: String,
+//!     created_at: String,
+//! }
+//!
+//! let app = App::new()
+//!     .post("/api/users", |Json(req): Json<CreateUserRequest>| async move {
+//!         // Create user logic
+//!         let user = CreateUserResponse {
+//!             id: 123,
+//!             name: req.name,
+//!             email: req.email,
+//!             created_at: "2024-01-01T00:00:00Z".to_string(),
+//!         };
+//!         Response::created().json(&user)
+//!     })
+//!     .document_endpoint("/api/users", EndpointDoc::new()
+//!         .method("POST")
+//!         .summary("Create a new user")
+//!         .description("Creates a new user account with the provided information")
+//!         .tag("Users")
+//!         .request_body(RequestBodyDoc::new()
+//!             .description("User creation data")
+//!             .json_schema::<CreateUserRequest>()
+//!             .required(true))
+//!         .response(201, ResponseDoc::new()
+//!             .description("User created successfully")
+//!             .json_schema::<CreateUserResponse>())
+//!         .response(400, ResponseDoc::new()
+//!             .description("Invalid request data"))
+//!         .response(409, ResponseDoc::new()
+//!             .description("User already exists")));
+//! ```
 
 use std::collections::HashMap;
 use crate::{Request, Response, App, Handler};

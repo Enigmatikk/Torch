@@ -1,38 +1,194 @@
-//! Query parameter extraction
+//! # Query Parameter Extraction
 //!
-//! Extract and deserialize query parameters from the URL.
+//! This module provides the [`Query`] extractor for parsing URL query parameters
+//! into strongly-typed Rust structs. It supports both simple HashMap extraction
+//! and complex struct deserialization with validation.
 
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::future::Future;
 use crate::{Request, extractors::{FromRequestParts, ExtractionError}};
 
-/// Extract query parameters from the request URL
+/// Extractor for URL query parameters.
 ///
-/// # Example
+/// The `Query` extractor parses query parameters from the URL query string and
+/// deserializes them into the specified type. It supports both simple key-value
+/// extraction and complex struct deserialization with type conversion and validation.
 ///
-/// ```rust,no_run
-/// use torch_web::extractors::Query;
+/// # Supported Types
+///
+/// - **HashMap<String, String>**: Extract all parameters as string key-value pairs
+/// - **Custom structs**: Use serde to deserialize into typed structs
+/// - **Optional fields**: Use `Option<T>` for optional parameters
+/// - **Collections**: Use `Vec<T>` for repeated parameters
+/// - **Primitive types**: Automatic conversion to numbers, booleans, etc.
+///
+/// # Query String Format
+///
+/// Query parameters follow standard URL encoding:
+/// - `?name=value&other=123` - Basic parameters
+/// - `?tags=rust&tags=web` - Repeated parameters (becomes Vec)
+/// - `?search=hello%20world` - URL-encoded values
+/// - `?active=true&count=42` - Type conversion
+///
+/// # Examples
+///
+/// ## Simple HashMap Extraction
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::Query};
 /// use std::collections::HashMap;
+///
+/// let app = App::new()
+///     .get("/search", |Query(params): Query<HashMap<String, String>>| async move {
+///         if let Some(q) = params.get("q") {
+///             Response::ok().body(format!("Searching for: {}", q))
+///         } else {
+///             Response::bad_request().body("Missing search query")
+///         }
+///     });
+/// ```
+///
+/// ## Typed Struct Extraction
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::Query};
 /// use serde::Deserialize;
 ///
-/// // Extract as HashMap
-/// async fn search(Query(params): Query<HashMap<String, String>>) {
-///     // params contains all query parameters
-/// }
-///
-/// // Extract into a custom struct
 /// #[derive(Deserialize)]
 /// struct SearchParams {
-///     q: String,
-///     page: Option<u32>,
-///     limit: Option<u32>,
+///     q: String,                    // Required parameter
+///     page: Option<u32>,           // Optional with default None
+///     limit: Option<u32>,          // Optional with default None
+///     #[serde(default)]
+///     sort: String,                // Optional with default ""
 /// }
 ///
-/// async fn search_typed(Query(params): Query<SearchParams>) {
-///     // Automatically deserializes and validates query parameters
-/// }
+/// let app = App::new()
+///     .get("/search", |Query(params): Query<SearchParams>| async move {
+///         let page = params.page.unwrap_or(1);
+///         let limit = params.limit.unwrap_or(10);
+///
+///         Response::ok().body(format!(
+///             "Searching '{}' - page {} with {} items",
+///             params.q, page, limit
+///         ))
+///     });
 /// ```
+///
+/// ## With Default Values
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::Query};
+/// use serde::Deserialize;
+///
+/// #[derive(Deserialize)]
+/// struct PaginationParams {
+///     #[serde(default = "default_page")]
+///     page: u32,
+///     #[serde(default = "default_limit")]
+///     limit: u32,
+///     #[serde(default)]
+///     sort: String,
+/// }
+///
+/// fn default_page() -> u32 { 1 }
+/// fn default_limit() -> u32 { 20 }
+///
+/// let app = App::new()
+///     .get("/items", |Query(params): Query<PaginationParams>| async move {
+///         Response::ok().body(format!(
+///             "Page {} with {} items, sorted by '{}'",
+///             params.page, params.limit, params.sort
+///         ))
+///     });
+/// ```
+///
+/// ## Array Parameters
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::Query};
+/// use serde::Deserialize;
+///
+/// #[derive(Deserialize)]
+/// struct FilterParams {
+///     tags: Vec<String>,           // ?tags=rust&tags=web&tags=framework
+///     categories: Option<Vec<u32>>, // ?categories=1&categories=2
+/// }
+///
+/// let app = App::new()
+///     .get("/posts", |Query(params): Query<FilterParams>| async move {
+///         Response::ok().body(format!(
+///             "Filtering by tags: {:?}, categories: {:?}",
+///             params.tags, params.categories
+///         ))
+///     });
+/// ```
+///
+/// ## Boolean and Numeric Types
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::Query};
+/// use serde::Deserialize;
+///
+/// #[derive(Deserialize)]
+/// struct SearchFilters {
+///     active: Option<bool>,        // ?active=true or ?active=false
+///     min_price: Option<f64>,      // ?min_price=19.99
+///     max_results: Option<u32>,    // ?max_results=100
+/// }
+///
+/// let app = App::new()
+///     .get("/products", |Query(filters): Query<SearchFilters>| async move {
+///         let mut conditions = Vec::new();
+///
+///         if let Some(active) = filters.active {
+///             conditions.push(format!("active = {}", active));
+///         }
+///         if let Some(min_price) = filters.min_price {
+///             conditions.push(format!("price >= {}", min_price));
+///         }
+///
+///         Response::ok().body(format!("Filters: {}", conditions.join(", ")))
+///     });
+/// ```
+///
+/// ## Combined with Path Parameters
+///
+/// ```rust
+/// use torch_web::{App, Response, extractors::{Path, Query}};
+/// use serde::Deserialize;
+///
+/// #[derive(Deserialize)]
+/// struct PostQuery {
+///     include_comments: Option<bool>,
+///     format: Option<String>,
+/// }
+///
+/// let app = App::new()
+///     .get("/users/:id/posts", |
+///         Path(user_id): Path<u32>,
+///         Query(query): Query<PostQuery>,
+///     | async move {
+///         let include_comments = query.include_comments.unwrap_or(false);
+///         let format = query.format.unwrap_or_else(|| "json".to_string());
+///
+///         Response::ok().body(format!(
+///             "Posts for user {} (comments: {}, format: {})",
+///             user_id, include_comments, format
+///         ))
+///     });
+/// ```
+///
+/// # Error Handling
+///
+/// Query extraction can fail for several reasons:
+/// - **Missing required parameters**: Returns 400 with parameter name
+/// - **Type conversion errors**: Returns 400 with conversion details
+/// - **Invalid format**: Returns 400 with parsing error
+/// - **Validation errors**: Returns 400 with validation details
+///
+/// All errors result in a `400 Bad Request` response with descriptive error messages.
 pub struct Query<T>(pub T);
 
 impl<T> FromRequestParts for Query<T>

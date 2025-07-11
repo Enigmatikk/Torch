@@ -1,4 +1,58 @@
-//! Security middleware and utilities for Torch framework
+//! # Security Middleware and Utilities
+//!
+//! This module provides comprehensive security middleware and utilities for protecting
+//! Torch web applications. It includes protection against common web vulnerabilities,
+//! request signing, IP whitelisting, security headers, and input validation.
+//!
+//! ## Available Security Features
+//!
+//! - **Security Headers**: Automatic security headers (HSTS, CSP, X-Frame-Options, etc.)
+//! - **Request Signing**: HMAC-based request authentication
+//! - **IP Whitelisting**: Restrict access to specific IP addresses or ranges
+//! - **Request ID**: Generate unique IDs for request tracking
+//! - **Input Validation**: Validate and sanitize user input
+//! - **Rate Limiting**: Protect against abuse and DoS attacks
+//!
+//! ## Security Best Practices
+//!
+//! ### 1. Always Use HTTPS in Production
+//! ```rust
+//! // Configure your reverse proxy (nginx, Apache) or load balancer
+//! // to terminate SSL and forward to your Torch application
+//! ```
+//!
+//! ### 2. Enable Security Headers
+//! ```rust
+//! use torch_web::{App, security::SecurityHeaders};
+//!
+//! let app = App::new()
+//!     .middleware(SecurityHeaders::new())
+//!     .get("/", |_req| async { Response::ok().body("Secure!") });
+//! ```
+//!
+//! ### 3. Validate All Input
+//! ```rust
+//! use torch_web::{App, security::InputValidator};
+//!
+//! let app = App::new()
+//!     .middleware(InputValidator)
+//!     .post("/api/data", |req| async move {
+//!         // Input is automatically validated
+//!         Response::ok().body("Data processed")
+//!     });
+//! ```
+//!
+//! ### 4. Use Request Signing for APIs
+//! ```rust
+//! use torch_web::{App, security::RequestSigning};
+//!
+//! let app = App::new()
+//!     .middleware(RequestSigning::new("your-secret-key"))
+//!     .post("/api/webhook", |req| async move {
+//!         // Request signature is automatically verified
+//!         Response::ok().body("Webhook processed")
+//!     });
+//! ```
 
 use std::collections::HashSet;
 use std::net::IpAddr;
@@ -13,7 +67,78 @@ use {
     uuid::Uuid,
 };
 
-/// Request signing middleware for API security
+/// HMAC-based request signing middleware for API security.
+///
+/// This middleware verifies that incoming requests are signed with a shared secret,
+/// providing authentication and integrity protection for API endpoints. It's particularly
+/// useful for webhooks and server-to-server communication.
+///
+/// **Note**: This middleware requires the `security` feature to be enabled.
+///
+/// # How It Works
+///
+/// 1. The client calculates an HMAC-SHA256 signature of the request body using a shared secret
+/// 2. The signature is sent in the `X-Signature` header as `sha256=<hex-encoded-signature>`
+/// 3. The middleware recalculates the signature and compares it with the provided one
+/// 4. If signatures match, the request is allowed; otherwise, it's rejected with 401 Unauthorized
+///
+/// # Examples
+///
+/// ## Basic Usage
+///
+/// ```rust
+/// use torch_web::{App, security::RequestSigning};
+///
+/// let app = App::new()
+///     .middleware(RequestSigning::new("your-secret-key"))
+///     .post("/webhook", |req| async move {
+///         // Request signature has been verified
+///         Response::ok().body("Webhook received")
+///     });
+/// ```
+///
+/// ## Client-Side Signing (Example)
+///
+/// ```python
+/// import hmac
+/// import hashlib
+/// import requests
+///
+/// def sign_request(secret, body):
+///     signature = hmac.new(
+///         secret.encode('utf-8'),
+///         body.encode('utf-8'),
+///         hashlib.sha256
+///     ).hexdigest()
+///     return f"sha256={signature}"
+///
+/// # Send signed request
+/// body = '{"event": "user.created", "data": {...}}'
+/// signature = sign_request("your-secret-key", body)
+///
+/// response = requests.post(
+///     "https://your-api.com/webhook",
+///     data=body,
+///     headers={
+///         "Content-Type": "application/json",
+///         "X-Signature": signature
+///     }
+/// )
+/// ```
+///
+/// ## With Custom Header Name
+///
+/// ```rust
+/// use torch_web::{App, security::RequestSigning};
+///
+/// // You can customize the header name by modifying the middleware
+/// let app = App::new()
+///     .middleware(RequestSigning::new("your-secret-key"))
+///     .post("/github-webhook", |req| async move {
+///         // GitHub uses X-Hub-Signature-256 header
+///         Response::ok().body("GitHub webhook processed")
+///     });
+/// ```
 pub struct RequestSigning {
     #[cfg(feature = "security")]
     secret: Vec<u8>,
