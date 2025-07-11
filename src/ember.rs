@@ -47,7 +47,6 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 use crate::Response;
 
 #[cfg(feature = "templates")]
@@ -55,7 +54,8 @@ use {
     once_cell::sync::Lazy,
     regex::Regex,
     std::fs,
-    std::sync::RwLock,
+    std::sync::Arc,
+    tokio::sync::RwLock,
 };
 
 /// Template data container for passing variables to templates
@@ -92,15 +92,16 @@ pub struct EmberConfig {
 
 /// Compiled template representation
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Used in future template caching implementation
 struct CompiledTemplate {
     content: String,
-    #[allow(dead_code)]
     dependencies: Vec<String>, // For inheritance and includes (future use)
     last_modified: std::time::SystemTime,
 }
 
 /// Template engine instance
 pub struct EmberEngine {
+    #[allow(dead_code)] // Used in future configuration implementation
     config: EmberConfig,
     #[cfg(feature = "templates")]
     cache: Arc<RwLock<HashMap<String, CompiledTemplate>>>,
@@ -264,9 +265,10 @@ impl EmberEngine {
         {
             self.render_template(template_name, data).await
         }
-        
+
         #[cfg(not(feature = "templates"))]
         {
+            let _ = (template_name, data); // Suppress unused variable warnings
             Err(EmberError {
                 message: "Template feature not enabled. Add 'templates' feature to use Ember.".to_string(),
                 template: Some(template_name.to_string()),
@@ -293,9 +295,10 @@ pub async fn ember(template_name: &str, data: EmberData) -> Response {
             }
         }
     }
-    
+
     #[cfg(not(feature = "templates"))]
     {
+        let _ = (template_name, data); // Suppress unused variable warnings
         Response::internal_error()
             .html("<h1>Template Error</h1><p>Template feature not enabled. Add 'templates' feature to use Ember.</p>")
     }

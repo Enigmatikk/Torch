@@ -16,9 +16,9 @@
 //! ## Security Best Practices
 //!
 //! ### 1. Always Use HTTPS in Production
-//! ```rust
-//! // Configure your reverse proxy (nginx, Apache) or load balancer
-//! // to terminate SSL and forward to your Torch application
+//! ```text
+//! Configure your reverse proxy (nginx, Apache) or load balancer
+//! to terminate SSL and forward to your Torch application
 //! ```
 //!
 //! ### 2. Enable Security Headers
