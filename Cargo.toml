@@ -1,6 +1,6 @@
 [package]
 name = "torch-web"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 authors = ["Dragos Ionut <dragosionut@keemail.me>"]
 description = "Fast, secure web framework for Rust with production-ready features out of the box"
@@ -59,6 +59,11 @@ sqlx = { version = "0.8", features = ["postgres", "runtime-tokio-rustls", "chron
 # Cache support (optional)
 redis = { version = "0.26", optional = true }
 
+# Ember template engine dependencies (optional)
+regex = { version = "1.10", optional = true }
+once_cell = { version = "1.19", optional = true }
+walkdir = { version = "2.4", optional = true }
+
 [features]
 default = ["json"]
 json = ["serde", "serde_json"]
@@ -82,6 +87,7 @@ websocket = ["tokio-tungstenite", "futures-util", "sha1", "base64", "uuid"]
 database = ["sqlx", "chrono", "uuid"]
 cache = ["redis"]
 api = ["json", "uuid"]
+templates = ["regex", "once_cell", "walkdir", "serde", "serde_json"]
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -102,5 +108,20 @@ path = "examples/state_demo.rs"
 [[example]]
 name = "enhanced_extractors"
 path = "examples/enhanced_extractors.rs"
+
+[[example]]
+name = "ember_demo"
+path = "examples/ember_demo.rs"
+required-features = ["templates"]
+
+[[example]]
+name = "ember_test"
+path = "examples/ember_test.rs"
+required-features = ["templates"]
+
+[[example]]
+name = "registration_wizard"
+path = "examples/registration_wizard.rs"
+required-features = ["templates", "json"]
 
 

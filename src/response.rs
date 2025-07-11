@@ -144,6 +144,18 @@ impl Response {
             .body(text)
     }
 
+    /// Render an Ember template (requires "templates" feature)
+    #[cfg(feature = "templates")]
+    pub async fn ember(template_name: &str, data: crate::ember::EmberData) -> Self {
+        crate::ember::ember(template_name, data).await
+    }
+
+    /// Render an Ember template with no data (requires "templates" feature)
+    #[cfg(feature = "templates")]
+    pub async fn ember_view(template_name: &str) -> Self {
+        crate::ember::ember_view(template_name).await
+    }
+
     /// Redirect to another URL
     pub fn redirect(status: StatusCode, location: &str) -> Self {
         Self::with_status(status)
