@@ -34,6 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 - ⚡ **Real-time Capable** - WebSocket and SSE support out of the box
 - 🎯 **Simple & Familiar** - Sinatra-inspired API that just works
 - 😄 **Fun Error Pages** - Beautiful 404 pages with rotating flame-themed messages
+- 🛠️ **Powerful CLI** - Laravel Artisan-inspired command-line tools for rapid development
 
 ## ✨ Features
 
@@ -210,6 +211,24 @@ torch-web = {
 }
 ```
 
+**CLI Tool (Optional):**
+
+Install the Torch CLI for Laravel Artisan-like functionality:
+```bash
+cargo install torch-web --features cli
+```
+
+The CLI will automatically show PATH setup instructions for your operating system. If the `torch` command is not found after installation, follow the displayed instructions to add `~/.cargo/bin` (or `%USERPROFILE%\.cargo\bin` on Windows) to your system PATH.
+
+Quick CLI usage:
+```bash
+torch new my-app        # Create new Torch application
+cd my-app
+torch serve --hot       # Start development server with hot reload
+torch make controller   # Generate controllers, models, etc.
+torch --help           # Show all available commands
+```
+
 **Available Features:**
 - `templates` - Ember templating engine with Laravel Blade-like syntax
 - `json` - JSON request/response handling with serde
@@ -217,6 +236,64 @@ torch-web = {
 - `cache` - Redis caching integration
 - `websocket` - WebSocket support for real-time apps
 - `api` - Enhanced API development tools
+- `cli` - Command-line interface with Laravel Artisan-like functionality
+- `cli` - Laravel Artisan-inspired command-line tools
+
+## 🛠️ Torch CLI - Laravel Artisan for Rust
+
+Torch includes a powerful CLI tool inspired by Laravel's Artisan, providing rapid scaffolding and development utilities:
+
+```bash
+# Install the CLI
+cargo install torch-web --features cli
+
+# Create a new Torch application
+torch new my-app
+
+# Generate controllers, models, and more
+torch make controller UserController --resource
+torch make model User --migration --factory --seeder
+
+# Start development server with hot reload
+torch serve --hot
+
+# Run database migrations
+torch migrate
+
+# Interactive REPL for debugging
+torch tinker
+
+# Build for production
+torch build --release
+```
+
+### Available CLI Commands
+
+**Project Management:**
+- `torch new <name>` - Create new Torch application
+- `torch serve --hot` - Development server with hot reload
+- `torch build --release` - Production build with optimizations
+
+**Code Generation:**
+- `torch make controller <name>` - Generate controllers (with `--resource`, `--api` flags)
+- `torch make model <name>` - Generate models (with `--migration`, `--factory`, `--seeder` flags)
+- `torch make middleware <name>` - Generate middleware
+- `torch make template <name>` - Generate Ember templates
+- `torch make migration <name>` - Generate database migrations
+- `torch make test <name>` - Generate tests
+
+**Database Operations:**
+- `torch migrate` - Run migrations (with `rollback`, `fresh`, `status` subcommands)
+- `torch db seed` - Seed database
+- `torch db status` - Show database status
+
+**Development Tools:**
+- `torch tinker` - Interactive REPL shell
+- `torch route list` - Show all routes
+- `torch cache clear` - Clear application caches
+- `torch optimize` - Optimize for production
+
+See the [CLI Documentation](docs/cli.md) for complete command reference and [CLI Tutorial](docs/cli-tutorial.md) for a step-by-step guide.
 
 ### Hello World
 
