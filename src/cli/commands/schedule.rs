@@ -40,8 +40,8 @@ fn run_scheduled_tasks() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut executed_count = 0;
     
-    for (task_name, schedule, description) in tasks {
-        // TODO: Implement actual cron schedule checking
+    for (task_name, _schedule, description) in tasks {
+        // TODO: Implement actual cron schedule checking using the schedule parameter
         // For demonstration, we'll simulate some tasks running
         let should_run = current_time.minute() % 2 == 0; // Simple simulation
         

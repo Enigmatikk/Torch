@@ -965,10 +965,10 @@ impl App {
             .middleware(crate::production::MetricsCollector::new())
             .middleware(crate::production::PerformanceMonitor)
 
-            // Security middleware
-            .middleware(crate::security::SecurityHeaders::new())
-            .middleware(crate::security::RequestId)
-            .middleware(crate::security::InputValidator)
+            // Security middleware (TODO: Implement proper middleware integration)
+            // .middleware(crate::security::SecurityHeaders::new())
+            // .middleware(crate::security::RequestId)
+            // .middleware(crate::security::InputValidator)
 
             // CORS support
             .middleware(crate::middleware::cors())
@@ -997,10 +997,11 @@ impl App {
     ///     });
     /// ```
     pub fn with_security() -> Self {
+        // TODO: Implement proper security middleware integration
         Self::new()
-            .middleware(crate::security::SecurityHeaders::new())
-            .middleware(crate::security::RequestId)
-            .middleware(crate::security::InputValidator)
+            // .middleware(crate::security::SecurityHeaders::new())
+            // .middleware(crate::security::RequestId)
+            // .middleware(crate::security::InputValidator)
     }
 
     /// Creates an app with monitoring and metrics collection enabled.

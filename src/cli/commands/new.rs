@@ -64,43 +64,11 @@ fn create_project_structure(path: &Path, minimal: bool) -> Result<(), Box<dyn st
     }
     
     // Create Cargo.toml
-    let features = if minimal {
-        r#"["json"]"#
+    let cargo_toml = if minimal {
+        create_minimal_cargo_toml(path.file_name().unwrap().to_str().unwrap())
     } else {
-        r#"["templates", "json", "database", "cache", "production"]"#
+        create_full_cargo_toml(path.file_name().unwrap().to_str().unwrap())
     };
-
-    let cargo_toml = format!(r#"[package]
-name = "{}"
-version = "0.1.0"
-edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
-description = "A Torch web application"
-
-[dependencies]
-torch-web = {{ version = "0.2.6", features = {} }}
-tokio = {{ version = "1.0", features = ["full"] }}
-serde = {{ version = "1.0", features = ["derive"] }}
-serde_json = "1.0"
-chrono = {{ version = "0.4", features = ["serde"] }}
-uuid = {{ version = "1.0", features = ["v4", "serde"] }}
-
-# Database dependencies (optional)
-sqlx = {{ version = "0.8", features = ["postgres", "runtime-tokio-rustls", "chrono", "uuid"], optional = true }}
-
-# Production dependencies (optional)
-tracing = {{ version = "0.1", optional = true }}
-tracing-subscriber = {{ version = "0.3", optional = true }}
-
-[features]
-default = ["json"]
-database = ["sqlx"]
-monitoring = ["tracing", "tracing-subscriber"]
-
-[[bin]]
-name = "server"
-path = "src/main.rs"
-"#, path.file_name().unwrap().to_str().unwrap(), features);
     
     fs::write(path.join("Cargo.toml"), cargo_toml)?;
     
@@ -142,19 +110,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     info!("🔥 Starting Torch application");
 
     let app = App::new()
-        .get("/", |_req: Request| async {
-            Response::ok().body("🔥 Welcome to Torch!")
-        })
-        .get("/hello/:name", |req: Request| async move {
-            let name = req.param("name").unwrap_or("World");
-            Response::ok().body(format!("Hello, {}!", name))
-        })
-        .get("/health", |_req: Request| async {
-            Response::ok().json(&serde_json::json!({
-                "status": "healthy",
-                "timestamp": chrono::Utc::now().to_rfc3339()
-            }))
-        });
+        .get("/", home_handler)
+        .get("/hello/:name", hello_handler)
+        .get("/health", health_handler);
 
     let host = "127.0.0.1";
     let port = 3000;
@@ -162,11 +120,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     info!("🔥 Torch server starting on http://{}:{}", host, port);
     app.listen(&format!("{}:{}", host, port)).await
 }
+
+async fn home_handler(_req: Request) -> Response {
+    Response::ok().body("🔥 Welcome to Torch!")
+}
+
+async fn hello_handler(req: Request) -> Response {
+    let name = req.param("name").unwrap_or("World");
+    Response::ok().body(format!("Hello, {}!", name))
+}
+
+async fn health_handler(_req: Request) -> Response {
+    Response::ok().json(&serde_json::json!({
+        "status": "healthy",
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    })).unwrap()
+}
 "#
     };
     
     fs::write(path.join("src/main.rs"), main_rs)?;
-    
+
+    // Create torch.toml configuration
+    let torch_config = create_torch_config(minimal);
+    fs::write(path.join("torch.toml"), torch_config)?;
+
     // Create basic template
     let layout_template = r#"<!DOCTYPE html>
 <html lang="en">
@@ -290,7 +268,7 @@ impl UserController {
 
         Response::ok().json(&serde_json::json!({
             "users": users
-        }))
+        })).unwrap()
     }
 
     /// GET /users/:id - Show specific user
@@ -302,7 +280,7 @@ impl UserController {
             created_at: chrono::Utc::now().to_rfc3339(),
         };
 
-        Response::ok().json(&user)
+        Response::ok().json(&user).unwrap()
     }
 
     /// POST /users - Create new user
@@ -314,7 +292,7 @@ impl UserController {
             created_at: chrono::Utc::now().to_rfc3339(),
         };
 
-        Response::created().json(&user)
+        Response::created().json(&user).unwrap()
     }
 }
 "#;
@@ -567,4 +545,496 @@ build/
     fs::write(path.join(".gitignore"), gitignore_content)?;
 
     Ok(())
+}
+
+/// Get the current torch-web version from the root Cargo.toml
+fn get_torch_version() -> String {
+    // Try to read the version from the current package's Cargo.toml
+    if let Ok(cargo_toml) = std::fs::read_to_string("Cargo.toml") {
+        for line in cargo_toml.lines() {
+            if line.starts_with("version = ") {
+                if let Some(version) = line.split('"').nth(1) {
+                    return version.to_string();
+                }
+            }
+        }
+    }
+
+    // Fallback to a reasonable default if we can't read the version
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// Create a minimal Cargo.toml for basic applications
+fn create_minimal_cargo_toml(project_name: &str) -> String {
+    let torch_version = get_torch_version();
+    format!(r#"[package]
+name = "{}"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "A Torch web application"
+
+[dependencies]
+torch-web = {{ version = "{}", features = ["json"] }}
+tokio = {{ version = "1.0", features = ["full"] }}
+serde = {{ version = "1.0", features = ["derive"] }}
+serde_json = "1.0"
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+"#, project_name, torch_version)
+}
+
+/// Create a full-featured Cargo.toml for production applications
+fn create_full_cargo_toml(project_name: &str) -> String {
+    let torch_version = get_torch_version();
+    format!(r#"[package]
+name = "{}"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "A Torch web application"
+
+[dependencies]
+# Core Torch framework with all features
+torch-web = {{ version = "{}", features = ["full"] }}
+
+# Async runtime
+tokio = {{ version = "1.0", features = ["full"] }}
+
+# Serialization
+serde = {{ version = "1.0", features = ["derive"] }}
+serde_json = "1.0"
+
+# Date/time handling
+chrono = {{ version = "0.4", features = ["serde"] }}
+
+# UUID generation
+uuid = {{ version = "1.0", features = ["v4", "serde"] }}
+
+# Database (PostgreSQL)
+sqlx = {{ version = "0.8", features = ["postgres", "runtime-tokio-rustls", "chrono", "uuid"] }}
+
+# Caching (Redis)
+redis = {{ version = "0.24", features = ["tokio-comp"] }}
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = {{ version = "0.3", features = ["env-filter"] }}
+
+# Configuration
+toml = "0.8"
+
+# Environment variables
+dotenv = "0.15"
+
+# Error handling
+anyhow = "1.0"
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+"#, project_name, torch_version)
+}
+
+/// Create torch.toml configuration file
+fn create_torch_config(minimal: bool) -> String {
+    if minimal {
+        create_minimal_torch_config()
+    } else {
+        create_full_torch_config()
+    }
+}
+
+/// Create minimal torch.toml for basic applications
+pub fn create_minimal_torch_config() -> String {
+    r#"# Torch Configuration File
+# This file contains all the configuration for your Torch application
+# Similar to Laravel's config files, but in TOML format
+
+[app]
+# Application name
+name = "Torch App"
+
+# Application environment (local, development, staging, production)
+env = "local"
+
+# Debug mode - shows detailed error pages in development
+debug = true
+
+# Application URL
+url = "http://127.0.0.1:3000"
+
+# Timezone for the application
+timezone = "UTC"
+
+[server]
+# Server host and port
+host = "127.0.0.1"
+port = 3000
+
+# Request timeout in seconds
+timeout = 30
+
+# Maximum request body size in MB
+max_body_size = 16
+
+# Enable hot reload in development
+hot_reload = true
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+
+# Log format: json, pretty
+format = "pretty"
+
+# Log to file (optional)
+# file = "logs/torch.log"
+
+# Uncomment to enable database support
+# [database]
+# driver = "postgres"
+# host = "127.0.0.1"
+# port = 5432
+# database = "torch_app"
+# username = "postgres"
+# password = "password"
+# pool_size = 10
+# timeout = 30
+
+# Uncomment to enable Redis caching
+# [cache]
+# driver = "redis"
+# host = "127.0.0.1"
+# port = 6379
+# database = 0
+# password = ""
+# prefix = "torch_cache"
+
+# Uncomment to enable session management
+# [session]
+# driver = "cookie"  # cookie, redis, database
+# lifetime = 120     # minutes
+# encrypt = true
+# secure = false     # set to true in production with HTTPS
+# same_site = "lax"  # strict, lax, none
+
+# Uncomment to enable CORS
+# [cors]
+# allowed_origins = ["*"]
+# allowed_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+# allowed_headers = ["*"]
+# expose_headers = []
+# max_age = 86400
+# credentials = false
+"#.to_string()
+}
+
+/// Create full torch.toml for production applications
+pub fn create_full_torch_config() -> String {
+    r#"# Torch Configuration File
+# This file contains all the configuration for your Torch application
+# Similar to Laravel's config files, but in TOML format
+
+[app]
+# Application name
+name = "Torch App"
+
+# Application environment (local, development, staging, production)
+env = "local"
+
+# Debug mode - shows detailed error pages in development
+debug = true
+
+# Application URL
+url = "http://127.0.0.1:3000"
+
+# Timezone for the application
+timezone = "UTC"
+
+# Application key for encryption (generate with: torch key:generate)
+# key = ""
+
+[server]
+# Server host and port
+host = "127.0.0.1"
+port = 3000
+
+# Request timeout in seconds
+timeout = 30
+
+# Maximum request body size in MB
+max_body_size = 16
+
+# Enable hot reload in development
+hot_reload = true
+
+# Number of worker threads (0 = auto-detect)
+workers = 0
+
+# Enable HTTP/2 support
+http2 = true
+
+# TLS configuration for HTTPS
+# [server.tls]
+# cert = "certs/server.crt"
+# key = "certs/server.key"
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+
+# Log format: json, pretty
+format = "pretty"
+
+# Log to file
+file = "logs/torch.log"
+
+# Rotate log files
+rotate = true
+max_size = "100MB"
+max_files = 10
+
+[database]
+# Database driver: postgres, mysql, sqlite
+driver = "postgres"
+
+# Connection details
+host = "127.0.0.1"
+port = 5432
+database = "torch_app"
+username = "postgres"
+password = "password"
+
+# Connection pool settings
+pool_size = 10
+min_connections = 1
+max_connections = 20
+timeout = 30
+
+# Enable query logging in development
+log_queries = true
+
+# Migration settings
+[database.migrations]
+table = "migrations"
+path = "migrations"
+
+# ORM Configuration
+[database.orm]
+# Enable ORM features
+enabled = true
+
+# Automatic timestamp management
+timestamps = true
+
+# Default timestamp column names
+created_at_column = "created_at"
+updated_at_column = "updated_at"
+
+# Soft deletes
+soft_deletes = false
+deleted_at_column = "deleted_at"
+
+# Model conventions
+table_naming = "snake_case_plural"  # snake_case_plural, snake_case, custom
+primary_key = "id"
+foreign_key_suffix = "_id"
+
+# Query optimization
+eager_loading = true
+query_cache = true
+query_cache_ttl = 300  # seconds
+
+# Model events
+model_events = true
+
+# Relationship loading strategy
+default_relationship_loading = "lazy"  # lazy, eager
+
+[cache]
+# Cache driver: redis, memory, file
+driver = "redis"
+
+# Redis connection
+host = "127.0.0.1"
+port = 6379
+database = 0
+password = ""
+
+# Cache key prefix
+prefix = "torch_cache"
+
+# Default TTL in seconds
+default_ttl = 3600
+
+[session]
+# Session driver: cookie, redis, database
+driver = "cookie"
+
+# Session lifetime in minutes
+lifetime = 120
+
+# Encrypt session data
+encrypt = true
+
+# Cookie settings
+secure = false      # set to true in production with HTTPS
+http_only = true
+same_site = "lax"   # strict, lax, none
+path = "/"
+domain = ""
+
+# Session table name (for database driver)
+table = "sessions"
+
+[cors]
+# CORS configuration
+enabled = true
+allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+allowed_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+allowed_headers = ["*"]
+expose_headers = ["X-Request-ID"]
+max_age = 86400
+credentials = true
+
+[security]
+# Security headers
+[security.headers]
+# Content Security Policy
+csp = "default-src 'self'"
+
+# HTTP Strict Transport Security (HSTS)
+hsts = "max-age=31536000; includeSubDomains"
+
+# X-Frame-Options
+frame_options = "DENY"
+
+# X-Content-Type-Options
+content_type_options = "nosniff"
+
+# X-XSS-Protection
+xss_protection = "1; mode=block"
+
+# Referrer Policy
+referrer_policy = "strict-origin-when-cross-origin"
+
+[mail]
+# Mail driver: smtp, sendmail, log
+driver = "log"
+
+# SMTP settings
+[mail.smtp]
+host = "smtp.mailtrap.io"
+port = 587
+username = ""
+password = ""
+encryption = "tls"  # tls, ssl, none
+
+# Default from address
+from_address = "noreply@torchapp.com"
+from_name = "Torch App"
+
+[queue]
+# Queue driver: redis, database, sync
+driver = "sync"
+
+# Default queue name
+default = "default"
+
+# Queue connection (for redis driver)
+connection = "default"
+
+# Failed job settings
+[queue.failed]
+driver = "database"
+table = "failed_jobs"
+
+[filesystem]
+# Default disk
+default = "local"
+
+# Disk configurations
+[filesystem.disks.local]
+driver = "local"
+root = "storage/app"
+
+[filesystem.disks.public]
+driver = "local"
+root = "storage/app/public"
+url = "/storage"
+
+# Uncomment for S3 support
+# [filesystem.disks.s3]
+# driver = "s3"
+# bucket = "your-bucket"
+# region = "us-east-1"
+# key = ""
+# secret = ""
+
+[broadcasting]
+# Broadcasting driver: redis, log, null
+driver = "log"
+
+# Pusher settings (for real-time features)
+# [broadcasting.pusher]
+# app_id = ""
+# key = ""
+# secret = ""
+# cluster = "mt1"
+
+[monitoring]
+# Enable application monitoring
+enabled = true
+
+# Metrics collection
+collect_metrics = true
+
+# Health check endpoint
+health_check = "/health"
+
+# Prometheus metrics endpoint
+metrics_endpoint = "/metrics"
+
+[api]
+# API configuration
+prefix = "api"
+version = "v1"
+
+# Rate limiting
+rate_limit = 60  # requests per minute
+rate_limit_by = "ip"  # ip, user, api_key
+
+# API documentation
+docs_enabled = true
+docs_path = "/docs"
+
+[templates]
+# Template engine settings
+engine = "ember"  # Torch's built-in templating engine
+
+# Template caching
+cache = true
+
+# Template directories
+paths = ["resources/views"]
+
+# Template file extension
+extension = "ember"
+
+[localization]
+# Default locale
+default = "en"
+
+# Available locales
+available = ["en", "es", "fr", "de"]
+
+# Locale detection method
+detection = "header"  # header, session, query
+
+# Fallback locale
+fallback = "en"
+"#.to_string()
 }

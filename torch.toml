@@ -1,167 +1,375 @@
-# Torch Framework Configuration File
-# This file contains all configurable settings for your Torch application
-# Copy this file to your project root and customize as needed
+# Torch Framework Configuration
+# This is the main configuration file for your Torch application.
+# Similar to Laravel's config files, this provides centralized configuration
+# for all aspects of your application.
+
+[app]
+# Application name and environment
+name = "Torch Application"
+env = "development"  # development, testing, production
+url = "http://localhost:3000"
+timezone = "UTC"
+locale = "en"
+fallback_locale = "en"
+
+# Application key for encryption (generate with: torch init key)
+key = "base64:aGVkNFh4QnJtSE9waHdkWEtxT3V1V3FQb1BQRnpVU1U="
+
+# Cipher used for encryption
+cipher = "AES-256-GCM"
 
 [server]
-# Server host and port configuration
+# Server configuration
 host = "127.0.0.1"
 port = 3000
-
-# Connection and performance settings
-max_connections = 10000
-request_timeout_secs = 30
-keep_alive_timeout_secs = 60
-max_body_size = 16777216  # 16MB in bytes
-worker_threads = 4  # Set to null for auto-detection
-enable_http2 = true
+workers = 4
+max_connections = 1000
+keep_alive = 75
+request_timeout = 30
+graceful_shutdown_timeout = 30
 
 # TLS/SSL configuration
-enable_tls = false
-tls_cert_path = "/path/to/cert.pem"  # Optional
-tls_key_path = "/path/to/key.pem"   # Optional
-
-# Graceful shutdown
-graceful_shutdown_timeout_secs = 30
-
-[security]
-# CORS configuration
-enable_cors = true
-cors_allowed_origins = ["*"]
-cors_allowed_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
-cors_allowed_headers = ["Content-Type", "Authorization", "X-Requested-With", "X-API-Key"]
-
-# Security headers
-enable_security_headers = true
-content_security_policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self'; frame-ancestors 'none';"
-
-# Request signing (for API security)
-enable_request_signing = false
-signing_secret = "your-secret-key-here"  # Change this in production!
-
-# IP whitelisting
-enable_ip_whitelist = false
-ip_whitelist = ["192.168.1.0/24", "10.0.0.0/8"]
-
-# Request tracking and validation
-enable_request_id = true
-max_request_size = 16777216  # 16MB
-enable_input_validation = true
-enable_sql_injection_protection = true
-enable_xss_protection = true
-
-[monitoring]
-# Logging configuration
-enable_request_logging = true
-log_level = "info"  # error, warn, info, debug, trace
-log_format = "json"  # json, text
-log_file = "/var/log/torch/app.log"  # Set to null for stdout
-
-# Metrics and monitoring
-enable_metrics = true
-metrics_endpoint = "/metrics"
-enable_health_check = true
-health_check_endpoint = "/health"
-
-# Performance monitoring
-enable_performance_monitoring = true
-slow_request_threshold_ms = 1000
-
-# Error tracking
-enable_error_tracking = true
-error_tracking_url = "https://your-error-tracking-service.com/api"
-
-# Distributed tracing
-enable_distributed_tracing = false
-tracing_endpoint = "http://jaeger:14268/api/traces"
-
-[performance]
-# Response optimization
-enable_compression = true
-compression_level = 6  # 1-9, higher = better compression but slower
-
-# Caching
-enable_caching = true
-cache_ttl_secs = 300  # 5 minutes
-max_cache_size_mb = 100
-
-# Connection pooling
-enable_connection_pooling = true
-connection_pool_size = 100
-connection_pool_timeout_secs = 30
-
-# Keep-alive settings
-enable_keep_alive = true
-keep_alive_timeout_secs = 60
-
-[rate_limiting]
-# Rate limiting configuration
-enable_rate_limiting = true
-global_rps_limit = 10000      # Global requests per second
-per_ip_rps_limit = 100        # Per IP requests per second
-per_user_rps_limit = 1000     # Per authenticated user requests per second
-window_secs = 60              # Rate limiting window
-
-# Burst handling
-enable_burst = true
-burst_size = 10
-
-# Storage backend for rate limiting
-storage_backend = "memory"    # memory, redis
-redis_url = "redis://localhost:6379"  # For distributed rate limiting
+tls_enabled = false
+tls_cert_path = ""
+tls_key_path = ""
 
 [database]
-# Database configuration (optional)
-url = "postgresql://user:password@localhost:5432/myapp"
-max_connections = 32
-min_connections = 5
-connect_timeout_secs = 30
-query_timeout_secs = 60
-enable_pooling = true
-enable_query_logging = false
-enable_migrations = true
-migrations_dir = "migrations"
+# Default database connection
+default = "postgres"
 
-# Custom application settings
-# Add your own configuration keys here
-[custom]
-app_name = "My Torch Application"
-version = "1.0.0"
-environment = "development"  # development, staging, production
-debug_mode = true
-api_version = "v1"
-default_page_size = 20
-max_page_size = 100
+# Database connections (similar to Laravel database.php)
+[database.connections.postgres]
+driver = "postgres"
+host = "localhost"
+port = 5432
+database = "torch_app"
+username = "postgres"
+password = ""
+charset = "utf8"
+prefix = ""
+schema = "public"
+sslmode = "prefer"
 
-# Feature flags
-[custom.features]
-enable_user_registration = true
-enable_email_verification = true
-enable_two_factor_auth = false
-enable_social_login = true
-enable_file_uploads = true
-max_file_size_mb = 10
+# Connection pool settings
+max_connections = 10
+min_connections = 1
+connect_timeout = 30
+idle_timeout = 600
+max_lifetime = 1800
 
-# External service URLs
-[custom.services]
-email_service_url = "https://api.sendgrid.com"
-payment_service_url = "https://api.stripe.com"
-storage_service_url = "https://s3.amazonaws.com"
-notification_service_url = "https://api.pusher.com"
+[database.connections.mysql]
+driver = "mysql"
+host = "localhost"
+port = 3306
+database = "torch_app"
+username = "root"
+password = ""
+charset = "utf8mb4"
+collation = "utf8mb4_unicode_ci"
+prefix = ""
+strict = true
+engine = "InnoDB"
 
-# API keys and secrets (use environment variables in production!)
-[custom.secrets]
-jwt_secret = "your-jwt-secret-here"
-encryption_key = "your-encryption-key-here"
-api_key = "your-api-key-here"
-webhook_secret = "your-webhook-secret-here"
+# Connection pool settings
+max_connections = 10
+min_connections = 1
+connect_timeout = 30
+idle_timeout = 600
+max_lifetime = 1800
 
-# Production deployment settings
-[custom.deployment]
-cluster_name = "torch-cluster"
-namespace = "default"
-replica_count = 3
-auto_scaling_enabled = true
-min_replicas = 2
-max_replicas = 10
-cpu_threshold = 70
-memory_threshold = 80
+[database.connections.sqlite]
+driver = "sqlite"
+database = "database/torch.db"
+prefix = ""
+foreign_key_constraints = true
+
+[cache]
+# Default cache store
+default = "redis"
+
+# Cache stores configuration
+[cache.stores.redis]
+driver = "redis"
+host = "127.0.0.1"
+port = 6379
+password = ""
+database = 0
+prefix = "torch_cache:"
+
+[cache.stores.memory]
+driver = "memory"
+max_size = "100MB"
+
+[cache.stores.file]
+driver = "file"
+path = "storage/cache"
+
+[session]
+# Session configuration
+driver = "redis"  # redis, file, cookie, database
+lifetime = 120    # minutes
+expire_on_close = false
+encrypt = true
+files = "storage/sessions"
+connection = "default"
+table = "sessions"
+store = "redis"
+lottery = [2, 100]  # [chances, out_of]
+cookie = "torch_session"
+path = "/"
+domain = ""
+secure = false
+http_only = true
+same_site = "lax"
+
+[security]
+# Security configuration
+csrf_protection = true
+xss_protection = true
+sql_injection_protection = true
+rate_limiting = true
+secure_headers = true
+
+# Request limits
+max_request_size = "16MB"
+max_upload_size = "10MB"
+
+# Session security
+session_timeout = 3600  # seconds
+
+# Password requirements
+[security.password]
+min_length = 8
+require_uppercase = true
+require_lowercase = true
+require_numbers = true
+require_special_chars = true
+min_char_types = 3
+
+# Rate limiting
+[security.rate_limit]
+requests_per_minute = 60
+burst_size = 10
+by_ip = true
+by_user = true
+by_api_key = true
+
+# CORS configuration
+[security.cors]
+allowed_origins = ["http://localhost:3000"]
+allowed_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+allowed_headers = ["*"]
+exposed_headers = []
+allow_credentials = false
+max_age = 86400
+
+# Content Security Policy
+csp_policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+
+# Allowed file upload types
+allowed_upload_types = ["image/jpeg", "image/png", "image/gif", "text/plain", "application/pdf"]
+
+[logging]
+# Logging configuration
+default = "stack"
+deprecations = "stack"
+
+# Log channels
+[logging.channels.stack]
+driver = "stack"
+channels = ["single", "daily"]
+ignore_exceptions = false
+
+[logging.channels.single]
+driver = "single"
+path = "storage/logs/torch.log"
+level = "debug"
+
+[logging.channels.daily]
+driver = "daily"
+path = "storage/logs/torch.log"
+level = "debug"
+days = 14
+
+[logging.channels.stderr]
+driver = "stderr"
+level = "debug"
+
+[mail]
+# Mail configuration
+default = "smtp"
+
+# Mail drivers
+[mail.mailers.smtp]
+transport = "smtp"
+host = "localhost"
+port = 587
+encryption = "tls"  # tls, ssl, or null
+username = ""
+password = ""
+timeout = 30
+
+[mail.mailers.sendmail]
+transport = "sendmail"
+path = "/usr/sbin/sendmail -bs -i"
+
+# Global mail settings
+[mail.from]
+address = "hello@example.com"
+name = "Torch Application"
+
+[queue]
+# Queue configuration
+default = "redis"
+
+# Queue connections
+[queue.connections.redis]
+driver = "redis"
+connection = "default"
+queue = "default"
+retry_after = 90
+block_for = 5
+
+[queue.connections.database]
+driver = "database"
+table = "jobs"
+queue = "default"
+retry_after = 90
+
+[queue.connections.sync]
+driver = "sync"
+
+# Failed job configuration
+[queue.failed]
+driver = "database"
+database = "default"
+table = "failed_jobs"
+
+[filesystem]
+# Filesystem configuration
+default = "local"
+
+# Filesystem disks
+[filesystem.disks.local]
+driver = "local"
+root = "storage/app"
+throw = false
+
+[filesystem.disks.public]
+driver = "local"
+root = "storage/app/public"
+url = "/storage"
+visibility = "public"
+throw = false
+
+[filesystem.disks.s3]
+driver = "s3"
+key = "base64:aGVkNFh4QnJtSE9waHdkWEtxT3V1V3FQb1BQRnpVU1U="
+secret = ""
+region = "us-east-1"
+bucket = ""
+url = ""
+endpoint = ""
+use_path_style_endpoint = false
+throw = false
+
+[broadcasting]
+# Broadcasting configuration
+default = "redis"
+
+# Broadcast connections
+[broadcasting.connections.redis]
+driver = "redis"
+connection = "default"
+
+[broadcasting.connections.pusher]
+driver = "pusher"
+key = "base64:aGVkNFh4QnJtSE9waHdkWEtxT3V1V3FQb1BQRnpVU1U="
+secret = ""
+app_id = ""
+cluster = "mt1"
+encrypted = true
+
+[services]
+# Third-party services configuration
+
+[services.mailgun]
+domain = ""
+secret = ""
+endpoint = "api.mailgun.net"
+scheme = "https"
+
+[services.postmark]
+token = ""
+
+[services.ses]
+key = "base64:aGVkNFh4QnJtSE9waHdkWEtxT3V1V3FQb1BQRnpVU1U="
+secret = ""
+region = "us-east-1"
+
+[monitoring]
+# Application monitoring
+enabled = true
+metrics_collection = true
+performance_tracking = true
+error_tracking = true
+
+# Metrics configuration
+[monitoring.metrics]
+driver = "prometheus"
+endpoint = "/metrics"
+enabled = true
+
+[api]
+# API configuration
+rate_limit = 60  # requests per minute
+throttle_key = "ip"
+prefix = "api"
+version = "v1"
+
+# API authentication
+[api.auth]
+driver = "token"  # token, jwt, oauth
+token_header = "Authorization"
+token_prefix = "Bearer"
+
+[ember]
+# Ember template engine configuration
+cache_enabled = true
+cache_path = "storage/ember/cache"
+auto_reload = true
+strict_variables = false
+debug = false
+
+# Template paths
+template_paths = ["resources/views"]
+compiled_path = "storage/ember/compiled"
+
+[websocket]
+# WebSocket configuration
+enabled = true
+host = "127.0.0.1"
+port = 3001
+path = "/ws"
+max_connections = 1000
+ping_interval = 30
+pong_timeout = 10
+
+[testing]
+# Testing configuration
+database = "testing"
+cache = "array"
+session = "array"
+queue = "sync"
+mail = "array"
+
+[production]
+# Production-specific settings
+optimize_autoloader = true
+cache_config = true
+cache_routes = true
+cache_views = true
+minify_assets = true
+enable_opcache = true
+log_level = "error"
+debug = true

@@ -1,16 +1,16 @@
 [package]
 name = "torch-web"
-version = "0.2.7"
+version = "0.2.8"
 edition = "2021"
 authors = ["Dragos Ionut <dragosionut@keemail.me>"]
-description = "Fast, secure web framework for Rust with production-ready features out of the box"
+description = "🔥 Fast, secure web framework for Rust with Laravel-inspired features, built-in ORM, CLI tools, and production-ready security"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enigmatikk/torch"
 homepage = "https://github.com/Enigmatikk/torch"
 documentation = "https://docs.rs/torch-web"
 readme = "README.md"
-keywords = ["web", "framework", "http", "async", "performance"]
-categories = ["web-programming::http-server", "asynchronous", "network-programming"]
+keywords = ["web", "framework", "laravel", "orm", "production"]
+categories = ["web-programming::http-server", "web-programming", "asynchronous", "command-line-utilities", "database"]
 exclude = ["target/", ".git/", ".github/", "*.log"]
 rust-version = "1.75"
 build = "build.rs"
@@ -54,8 +54,17 @@ tokio-tungstenite = { version = "0.20", optional = true }
 futures-util = { version = "0.3", optional = true }
 sha1 = { version = "0.10", optional = true }
 
-# Database support (optional)
-sqlx = { version = "0.8", features = ["postgres", "runtime-tokio-rustls", "chrono", "uuid"], optional = true }
+# Database support (optional) - supports PostgreSQL, MySQL/MariaDB, and SQLite
+sqlx = { version = "0.8", features = ["any", "postgres", "mysql", "sqlite", "runtime-tokio-rustls", "chrono", "uuid"], optional = true }
+
+# ORM dependencies (optional)
+async-trait = { version = "0.1", optional = true }
+chrono-tz = { version = "0.8", optional = true }
+thiserror = { version = "1.0", optional = true }
+
+# Security dependencies
+rand = { version = "0.8", optional = true }
+hex = { version = "0.4", optional = true }
 
 # Cache support (optional)
 redis = { version = "0.26", optional = true }
@@ -74,6 +83,7 @@ dialoguer = { version = "0.11", optional = true }
 [features]
 default = ["json"]
 json = ["serde", "serde_json"]
+full = ["production", "security", "database", "cache", "templates", "websocket", "monitoring", "api"]
 production = [
     "json",
     "chrono",
@@ -87,15 +97,15 @@ production = [
     "hmac",
     "base64"
 ]
-security = ["sha2", "hmac", "base64", "uuid"]
+security = ["sha2", "hmac", "base64", "uuid", "regex", "rand", "hex", "thiserror", "once_cell"]
 config = ["toml", "serde"]
 monitoring = ["tracing", "tracing-subscriber", "metrics", "chrono"]
 websocket = ["tokio-tungstenite", "futures-util", "sha1", "base64", "uuid"]
-database = ["sqlx", "chrono", "uuid"]
+database = ["sqlx", "chrono", "uuid", "async-trait", "once_cell", "chrono-tz", "thiserror"]
 cache = ["redis"]
 api = ["json", "uuid"]
 templates = ["regex", "once_cell", "walkdir", "serde", "serde_json"]
-cli = ["clap", "colored", "indicatif", "dialoguer", "walkdir", "toml", "serde", "serde_json", "chrono"]
+cli = ["clap", "colored", "indicatif", "dialoguer", "walkdir", "toml", "serde", "serde_json", "chrono", "security"]
 
 [[bin]]
 name = "torch"

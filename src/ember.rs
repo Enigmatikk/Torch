@@ -344,12 +344,11 @@ impl EmberEngine {
 
         // Check cache if enabled
         if self.config.cache_enabled {
-            if let Ok(cache) = self.cache.read() {
-                if let Some(cached) = cache.get(template_name) {
-                    // Use cached version if it's still fresh or hot reload is disabled
-                    if !self.config.hot_reload || cached.last_modified >= last_modified {
-                        return Ok(cached.clone());
-                    }
+            let cache = self.cache.read().await;
+            if let Some(cached) = cache.get(template_name) {
+                // Use cached version if it's still fresh or hot reload is disabled
+                if !self.config.hot_reload || cached.last_modified >= last_modified {
+                    return Ok(cached.clone());
                 }
             }
         }
@@ -371,9 +370,8 @@ impl EmberEngine {
 
         // Cache the compiled template
         if self.config.cache_enabled {
-            if let Ok(mut cache) = self.cache.write() {
-                cache.insert(template_name.to_string(), compiled.clone());
-            }
+            let mut cache = self.cache.write().await;
+            cache.insert(template_name.to_string(), compiled.clone());
         }
 
         Ok(compiled)

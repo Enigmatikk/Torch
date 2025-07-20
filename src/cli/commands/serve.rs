@@ -25,7 +25,7 @@ pub fn start_server(host: &str, port: u16, hot: bool) -> Result<(), Box<dyn std:
 }
 
 /// Start server with hot reload functionality
-fn start_hot_reload_server(host: &str, port: u16) -> Result<(), Box<dyn std::error::Error>> {
+fn start_hot_reload_server(_host: &str, _port: u16) -> Result<(), Box<dyn std::error::Error>> {
     println!("{} Press Ctrl+C to stop", "💡".yellow());
     println!();
 
@@ -110,12 +110,25 @@ fn start_normal_server() -> Result<(), Box<dyn std::error::Error>> {
     println!();
 
     let mut cmd = Command::new("cargo");
-    cmd.arg("run");
 
-    let status = cmd.status()?;
+    // Check if we're in a Torch project directory
+    if Path::new("Cargo.toml").exists() {
+        // Try to run the server binary, fallback to default main
+        cmd.arg("run").arg("--bin").arg("server");
 
-    if !status.success() {
-        return Err("Failed to start server".into());
+        // If that fails, try just cargo run
+        let status = cmd.status();
+        if status.is_err() || !status.unwrap().success() {
+            let mut fallback_cmd = Command::new("cargo");
+            fallback_cmd.arg("run");
+            let fallback_status = fallback_cmd.status()?;
+
+            if !fallback_status.success() {
+                return Err("Failed to start server. Make sure you're in a Torch project directory.".into());
+            }
+        }
+    } else {
+        return Err("No Cargo.toml found. Make sure you're in a Rust project directory.".into());
     }
 
     Ok(())
@@ -124,12 +137,34 @@ fn start_normal_server() -> Result<(), Box<dyn std::error::Error>> {
 /// Start server process for hot reload
 fn start_server_process() -> Result<Child, Box<dyn std::error::Error>> {
     let mut cmd = Command::new("cargo");
-    cmd.arg("run")
-       .stdout(Stdio::piped())
-       .stderr(Stdio::piped());
 
-    let child = cmd.spawn()?;
-    Ok(child)
+    // Check if we're in a Torch project directory
+    if Path::new("Cargo.toml").exists() {
+        // Try to run the server binary first
+        cmd.arg("run")
+           .arg("--bin")
+           .arg("server")
+           .stdout(Stdio::piped())
+           .stderr(Stdio::piped());
+
+        // Try to spawn the process
+        match cmd.spawn() {
+            Ok(child) => Ok(child),
+            Err(_) => {
+                // Fallback to default cargo run
+                let mut fallback_cmd = Command::new("cargo");
+                fallback_cmd.arg("run")
+                           .stdout(Stdio::piped())
+                           .stderr(Stdio::piped());
+
+                fallback_cmd.spawn().map_err(|e| {
+                    format!("Failed to start server: {}. Make sure you're in a Torch project directory.", e).into()
+                })
+            }
+        }
+    } else {
+        Err("No Cargo.toml found. Make sure you're in a Rust project directory.".into())
+    }
 }
 
 /// Rebuild the application

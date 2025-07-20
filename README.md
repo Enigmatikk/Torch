@@ -206,7 +206,7 @@ cargo add torch-web --features json
 ```toml
 [dependencies]
 torch-web = {
-    version = "0.2.2",
+    version = "0.2.8",
     features = ["templates", "json", "database", "cache", "websocket"]
 }
 ```
@@ -846,7 +846,7 @@ members = [
 ]
 
 [workspace.dependencies]
-torch-web = { version = "0.2.2", features = ["templates", "json"] }
+torch-web = { version = "0.2.8", features = ["templates", "json"] }
 ```
 
 **Benefits:**

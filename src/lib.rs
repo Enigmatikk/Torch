@@ -45,6 +45,9 @@ pub mod websocket;
 #[cfg(feature = "cli")]
 pub mod cli;
 
+#[cfg(feature = "database")]
+pub mod orm;
+
 // Everything you need to get started
 pub use app::App;
 pub use error_pages::ErrorPages;

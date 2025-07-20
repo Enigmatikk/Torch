@@ -21,7 +21,7 @@ pub type HandlerFn = std::sync::Arc<
 >;
 
 /// Implement Handler for async functions that take Request and return Response
-impl<F, Fut> Handler<()> for F
+impl<F, Fut> Handler<(Request,)> for F
 where
     F: Fn(Request) -> Fut + Clone + Send + Sync + 'static,
     Fut: Future<Output = Response> + Send + 'static,
@@ -195,23 +195,7 @@ where
 
 // Handler implementations for FromRequest extractors (like Json, Form)
 
-/// Handler for async functions that take Request directly
-impl<F, Fut, Res> Handler<(Request,)> for F
-where
-    F: Fn(Request) -> Fut + Clone + Send + Sync + 'static,
-    Fut: Future<Output = Res> + Send + 'static,
-    Res: IntoResponse,
-{
-    type Future = Pin<Box<dyn Future<Output = Response> + Send + 'static>>;
 
-    fn call(&self, req: Request) -> Self::Future {
-        let handler = self.clone();
-        Box::pin(async move {
-            let res = handler(req).await;
-            res.into_response()
-        })
-    }
-}
 
 /// A convenience macro for creating simple handlers
 #[macro_export]

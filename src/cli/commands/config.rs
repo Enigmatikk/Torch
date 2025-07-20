@@ -17,6 +17,9 @@ pub fn handle_operation(operation: ConfigOperation) -> Result<(), Box<dyn std::e
         ConfigOperation::Show { key } => {
             show_config(key)?;
         }
+        ConfigOperation::Publish { force, minimal } => {
+            publish_config(force, minimal)?;
+        }
     }
     Ok(())
 }
@@ -185,3 +188,54 @@ fn show_config(key: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
     
     Ok(())
 }
+
+/// Publish torch.toml configuration file
+fn publish_config(force: bool, minimal: bool) -> Result<(), Box<dyn std::error::Error>> {
+    use crate::cli::commands::new::{create_minimal_torch_config, create_full_torch_config};
+    let config_path = Path::new("torch.toml");
+
+    // Check if config already exists
+    if config_path.exists() && !force {
+        println!("{} torch.toml already exists", "⚠️".yellow());
+        println!("Use {} to overwrite", "--force".cyan());
+        return Ok(());
+    }
+
+    println!("{} Publishing torch.toml configuration...", "📝".blue());
+
+    // Generate configuration content
+    let config_content = if minimal {
+        create_minimal_torch_config()
+    } else {
+        create_full_torch_config()
+    };
+
+    // Write configuration file
+    fs::write(config_path, config_content)?;
+
+    if config_path.exists() {
+        println!("{} Configuration published successfully!", "✅".green());
+        println!();
+        println!("{} torch.toml", "📄".blue());
+
+        if minimal {
+            println!("  {} Minimal configuration with basic settings", "•".yellow());
+            println!("  {} Uncomment sections to enable features", "•".yellow());
+        } else {
+            println!("  {} Full configuration with all available options", "•".yellow());
+            println!("  {} Ready for production use", "•".yellow());
+        }
+
+        println!();
+        println!("{}", "Next steps:".blue().bold());
+        println!("  {} Edit torch.toml to customize your application", "1.".cyan());
+        println!("  {} Set environment variables for sensitive data", "2.".cyan());
+        println!("  {} Run {} to start your application", "3.".cyan(), "torch serve".yellow());
+    } else {
+        println!("{} Failed to create configuration file", "❌".red());
+    }
+
+    Ok(())
+}
+
+

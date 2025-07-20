@@ -38,6 +38,11 @@ pub enum Commands {
         #[arg(long)]
         minimal: bool,
     },
+    /// Initialize project files and configuration
+    Init {
+        #[command(subcommand)]
+        init_command: commands::init::InitCommands,
+    },
     /// Generate code (controllers, models, etc.)
     Make {
         #[command(subcommand)]
@@ -344,6 +349,15 @@ pub enum ConfigOperation {
         /// Specific config key to show
         key: Option<String>,
     },
+    /// Publish torch.toml configuration file
+    Publish {
+        /// Force overwrite existing configuration
+        #[arg(long)]
+        force: bool,
+        /// Create minimal configuration
+        #[arg(long)]
+        minimal: bool,
+    },
 }
 
 #[cfg(feature = "cli")]
@@ -413,6 +427,9 @@ fn run_command(command: Commands) -> Result<(), Box<dyn std::error::Error>> {
     match command {
         Commands::New { name, minimal } => {
             commands::new::create_project(&name, minimal)?;
+        }
+        Commands::Init { init_command } => {
+            commands::init::handle_init_command(init_command)?;
         }
         Commands::Make { generator } => {
             commands::make::generate(generator)?;

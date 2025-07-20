@@ -131,11 +131,17 @@ fn wipe_database(force: bool) -> Result<(), Box<dyn std::error::Error>> {
 /// Database configuration structure
 #[derive(Debug)]
 struct DatabaseConfig {
+    #[allow(dead_code)]
     driver: String,
+    #[allow(dead_code)]
     host: String,
+    #[allow(dead_code)]
     port: u16,
+    #[allow(dead_code)]
     database: String,
+    #[allow(dead_code)]
     username: String,
+    #[allow(dead_code)]
     password: String,
 }
 
@@ -154,7 +160,7 @@ fn load_database_config() -> Result<DatabaseConfig, Box<dyn std::error::Error>> 
 }
 
 /// Wipe PostgreSQL database
-fn wipe_postgres_database(config: &DatabaseConfig) -> Result<(), Box<dyn std::error::Error>> {
+fn wipe_postgres_database(_config: &DatabaseConfig) -> Result<(), Box<dyn std::error::Error>> {
     // TODO: Implement PostgreSQL database wiping
     // This would involve connecting to the database and dropping all tables
     println!("  • Connected to PostgreSQL database");
